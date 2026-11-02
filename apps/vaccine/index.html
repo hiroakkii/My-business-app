@@ -1,22 +1,2186 @@
-<!doctype html>
+﻿<!doctype html>
 <html lang="ja">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'">
 <title>ワクチン接種管理</title>
 <style>
-body{margin:0;background:#f4f6f8;color:#1f2933;font:15px/1.7 "Yu Gothic UI","Meiryo UI","Hiragino Kaku Gothic ProN",sans-serif}
-.box{max-width:640px;margin:48px auto;background:#fff;border:1px solid #d9dfe5;border-radius:8px;padding:24px 28px}
-h1{font-size:18px;margin:0 0 12px}
-code{background:#eef2f6;padding:1px 6px;border-radius:4px}
+:root{
+  --bg:#f3f5f7;--panel:#fff;--ink:#1d2731;--muted:#66727f;--line:#d8dde3;--line2:#eceff2;
+  --accent:#1f6fb5;--accent-weak:#e7f0f9;--accent-ink:#fff;
+  --auto:#c0392b;--auto-weak:#fdeeec;
+  --ok:#1b8553;--ok-weak:#e2f3ea;--warn:#8a5d00;--warn-weak:#fff3d4;--danger:#b42318;
+}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{background:var(--bg);color:var(--ink);font-family:"Yu Gothic UI","Yu Gothic","Meiryo","Hiragino Sans",sans-serif;font-size:15px;line-height:1.5}
+button,input,select,textarea{font:inherit;color:inherit}
+button{cursor:pointer;border:1px solid var(--line);background:var(--panel);border-radius:6px;padding:6px 12px;white-space:nowrap}
+button:hover{border-color:#b7c0ca;background:#f8fafb}
+button.primary{background:var(--accent);border-color:var(--accent);color:var(--accent-ink);font-weight:600}
+button.primary:hover{filter:brightness(1.07)}
+button.danger{color:var(--danger);border-color:#f0c4c0}
+button.small{padding:2px 8px;font-size:13px}
+button:disabled{opacity:.45;cursor:default}
+input[type=text],input[type=search],input[type=date],select,textarea{border:1px solid var(--line);border-radius:6px;padding:6px 8px;background:#fff;min-width:0}
+input:focus,select:focus,textarea:focus,button:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+
+header.top{background:var(--panel);border-bottom:1px solid var(--line);padding:10px 16px;display:flex;flex-wrap:wrap;gap:8px 16px;align-items:center}
+.brand{display:flex;align-items:baseline;gap:10px}
+.brand h1{font-size:19px;margin:0;letter-spacing:.04em}
+.badge{font-size:12px;padding:1px 8px;border-radius:999px;background:var(--accent-weak);color:var(--accent);font-weight:600}
+.status{font-size:13px;color:var(--muted)}
+.status b{color:var(--ink)}
+.status .warnTxt{color:var(--warn);font-weight:600}
+.actions{display:flex;flex-wrap:wrap;gap:6px;margin-left:auto}
+.sep{width:1px;background:var(--line);margin:0 4px}
+
+nav.tabs{display:flex;gap:2px;padding:0 16px;background:var(--panel);border-bottom:1px solid var(--line);overflow-x:auto}
+nav.tabs button{border:0;border-bottom:3px solid transparent;border-radius:0;background:none;padding:10px 16px;font-weight:600;color:var(--muted)}
+nav.tabs button.active{color:var(--accent);border-bottom-color:var(--accent)}
+nav.tabs .cnt{font-size:12px;font-weight:500;margin-left:6px;background:var(--line2);color:var(--muted);border-radius:999px;padding:0 7px}
+nav.tabs button.active .cnt{background:var(--accent-weak);color:var(--accent)}
+
+main{padding:12px 16px 40px}
+.toolbar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:10px}
+.toolbar input[type=search]{width:240px}
+.summary{margin-left:auto;font-size:13px;color:var(--muted)}
+.summary b{color:var(--ink);font-size:15px}
+.tablewrap{background:var(--panel);border:1px solid var(--line);border-radius:8px;overflow:auto;max-height:calc(100vh - 210px)}
+table.list{border-collapse:collapse;width:100%;font-size:14px}
+table.list th{position:sticky;top:0;background:#f7f8fa;border-bottom:1px solid var(--line);padding:7px 8px;text-align:left;font-size:12.5px;color:var(--muted);font-weight:600;white-space:nowrap;z-index:1}
+table.list td{border-bottom:1px solid var(--line2);padding:6px 8px;vertical-align:middle;white-space:nowrap}
+table.list tbody tr{cursor:pointer}
+table.list tbody tr:hover td{background:#f5f9fd}
+table.list td.num{text-align:right;font-variant-numeric:tabular-nums}
+.kana{display:block;font-size:11.5px;color:var(--muted);line-height:1.2}
+.nm{font-weight:600}
+.tag{display:inline-block;font-size:12px;padding:0 6px;border-radius:4px;background:var(--line2);margin:1px 2px 1px 0;line-height:1.6}
+.tag.auto{background:var(--auto-weak);color:var(--auto)}
+.tag.ok{background:var(--ok-weak);color:var(--ok)}
+.tag.warn{background:var(--warn-weak);color:var(--warn)}
+.done{color:var(--ok);font-weight:600}
+.empty{padding:40px 16px;text-align:center;color:var(--muted)}
+.empty:empty{display:none}
+.memo{max-width:220px;overflow:hidden;text-overflow:ellipsis;color:var(--muted)}
+
+dialog{border:0;border-radius:10px;padding:0;width:min(880px,96vw);max-height:94vh;box-shadow:0 20px 60px rgba(0,0,0,.25)}
+dialog::backdrop{background:rgba(20,30,40,.45)}
+.dlg{display:flex;flex-direction:column;max-height:94vh}
+.dlg-h{display:flex;align-items:center;padding:12px 18px;border-bottom:1px solid var(--line)}
+.dlg-h h2{margin:0;font-size:17px}
+.dlg-h .x{margin-left:auto;border:0;font-size:20px;line-height:1;padding:2px 8px;background:none}
+.dlg-b{padding:14px 18px;overflow:auto}
+.dlg-f{display:flex;gap:8px;padding:12px 18px;border-top:1px solid var(--line);background:#fafbfc;border-radius:0 0 10px 10px}
+.dlg-f .grow{flex:1}
+.sec{margin-bottom:16px}
+.sec h3{font-size:13.5px;margin:0 0 8px;color:var(--muted);font-weight:600;letter-spacing:.05em}
+.searchbox{display:flex;gap:8px}
+.searchbox input{flex:1;font-size:16px;padding:8px 10px}
+.results{border:1px solid var(--line);border-radius:6px;margin-top:6px;max-height:260px;overflow:auto}
+.results:empty{display:none}
+.res{display:grid;grid-template-columns:90px 1fr 150px 1fr;gap:8px;padding:7px 10px;border-bottom:1px solid var(--line2);cursor:pointer;align-items:center}
+.res:last-child{border-bottom:0}
+.res:hover,.res.hl{background:var(--accent-weak)}
+.res .id{color:var(--muted);font-variant-numeric:tabular-nums}
+.res .gh{color:var(--muted);font-size:13px}
+.hint{font-size:12.5px;color:var(--muted)}
+.patcard{border:1px solid var(--line);border-left:4px solid var(--auto);border-radius:6px;padding:10px 14px;display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:6px 18px;position:relative}
+.patcard .f small{display:block;font-size:11.5px;color:var(--muted)}
+.patcard .f span{color:var(--auto);font-weight:600}
+.patcard .f.wide{grid-column:1/-1}
+.patcard .chg{position:absolute;right:10px;top:8px}
+.autonote{font-size:11.5px;color:var(--auto);margin-top:4px}
+.dates{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:8px 16px}
+.df label{display:block;font-size:13px;color:var(--muted);margin-bottom:2px}
+.df .row{display:flex;gap:4px}
+.df input{flex:1}
+.chips{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px;align-items:center}
+.chips .gl{font-size:12.5px;color:var(--muted);min-width:64px}
+.chip{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--line);border-radius:999px;padding:5px 12px;cursor:pointer;user-select:none;background:#fff}
+.chip input{position:absolute;opacity:0;pointer-events:none}
+.chip:has(input:checked){background:var(--accent);border-color:var(--accent);color:#fff}
+.chip:has(input:focus-visible){outline:2px solid var(--accent);outline-offset:1px}
+.chip.autochip{border-color:#efc2bd;background:var(--auto-weak);color:var(--auto);cursor:default}
+.chip.autochip.no{background:#f4f5f6;color:var(--muted);border-color:var(--line)}
+.chip .why{font-size:11px;opacity:.85}
+.warns div{background:var(--warn-weak);color:var(--warn);border-radius:6px;padding:6px 10px;font-size:13.5px;margin-top:6px}
+.manual{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:14px 18px;margin-top:8px;padding:18px;border:2px solid var(--accent);border-radius:8px;background:var(--accent-weak)}
+.manual .mt{grid-column:1/-1;font-size:16px;font-weight:700;color:var(--accent)}
+.manual label{display:block;font-size:14px;font-weight:600;margin-bottom:4px}
+.manual label .req{color:var(--danger);font-size:12px;margin-left:4px}
+.manual input{width:100%;font-size:17px;padding:10px 12px}
+.manual button{font-size:16px;padding:10px 20px}
+.manualbtn{margin-top:8px;font-size:15px;padding:9px 16px;border-color:var(--accent);color:var(--accent);font-weight:600;background:#fff}
+.warns .err{background:#fde8e6;color:var(--danger);font-weight:700;border:1px solid #f0b4ae}
+#printArea{display:none}
+.pl h2{font-size:17px;margin:0 0 2px}
+.pl .sub{color:var(--muted);font-size:13px;margin-bottom:8px}
+.pl h3.vt{font-size:15px;margin:14px 0 4px;padding:3px 8px;background:#e9eef3;color:#1d2731;letter-spacing:.04em}
+.pl h4.gt{font-size:14px;margin:10px 0 2px;padding:2px 6px;border-left:4px solid var(--accent)}
+.pl table{border-collapse:collapse;width:100%;font-size:13px;margin-bottom:4px}
+.pl th,.pl td{border:1px solid #888;padding:3px 6px;text-align:left;vertical-align:middle}
+.pl th{background:#f0f2f4;font-weight:600;font-size:12px}
+.pl td.c{text-align:center}
+.pl td:nth-child(3){white-space:nowrap}
+.pl tr.grp td{background:#e9eef3;font-weight:700;font-size:12.5px;padding:2px 6px}
+.pl tr.grp{break-after:avoid}
+.pl .kn{display:block;font-size:10.5px;color:#555;line-height:1.15}
+.pl .chkbox{display:inline-block;width:15px;height:15px;border:1.5px solid #222;vertical-align:middle}
+@media print{.pl.calprint.pb{break-before:page}}
+.pl.calprint table{table-layout:fixed;font-size:15px}
+.pl.calprint td.cl,.pl.calprint td.ce{height:84px;vertical-align:top;padding:4px 6px}
+.pl.calprint .cdn{display:block;font-weight:700;font-size:16px}
+.pl.calprint .cnn{display:block;text-align:center;font-size:28px;font-weight:700;margin-top:8px}
+.pl.calprint .cnn.mu{font-size:16px;line-height:1.2;margin-top:2px;text-align:left}
+.pl.calprint.calprint td.cl{height:100px}
+.pl.calprint .calstamp{float:right;font-size:13px;color:#333}
+.pl.calprint td.pst,.pl.calprint td.pst .cdn,.pl.calprint td.pst .cnn{color:#bbb!important}
+.pl.calprint td.pst .cdn,.pl.calprint td.pst .cnn{opacity:.4;font-weight:400}
+.pl.calprint td.pst{background:#f0f0f0}
+.pl.calprint td.su .cdn{color:#b42318}.pl.calprint td.sa .cdn{color:#1f6fb5}
+.pl .none{color:var(--muted);padding:20px 0}
+.pl .total{margin-top:8px;font-size:13px;font-weight:600}
+@media print{
+  @page{size:A4 landscape;margin:10mm}
+  body{background:#fff}
+  body>*:not(#printArea){display:none!important}
+  #printArea{display:block!important}
+  .pl .pb{break-before:page}
+  .pl tr{break-inside:avoid}
+  .pl h3.vt,.pl h4.gt{break-after:avoid}
+}
+table.list td.chk,table.list th:first-child{width:34px;text-align:center}
+table.list input[type=checkbox]{width:17px;height:17px;cursor:pointer}
+.patcard .chg2{right:104px}
+.jdwrap{display:inline-flex;flex-direction:column;position:relative;vertical-align:top;min-width:0}
+.df .row .jdwrap,.manual .jdwrap{flex:1;display:flex;width:100%}
+.jdline{display:flex;gap:4px;align-items:center}
+.df .row{align-items:flex-start}
+.df .row>button{align-self:flex-start;height:34px;margin-top:0}
+.jdline input.jd{flex:1;min-width:110px;width:100%}
+.jdline .jdbtn{padding:0 8px;font-size:15px;height:34px}
+.jdline input.jd{height:34px}
+.jdhint{font-size:11.5px;color:var(--muted);min-height:1.2em;line-height:1.3;padding-left:2px}
+.jdhint.err,input.jd.err{color:var(--danger)}
+input.jd.err,input.jd.bad{border-color:var(--danger);background:#fdf1f0;outline:2px solid #f0b4ae}
+.manual .jdline input.jd,.manual .jdline .jdbtn{height:auto}
+.jdline .jdbtn{white-space:nowrap}
+.jdpop{position:fixed;z-index:1000;width:300px;background:#fff;border:1px solid var(--line);border-radius:8px;box-shadow:0 10px 30px rgba(0,0,0,.25);padding:10px 12px;font-size:14px}
+.jdpop .jdpt{font-weight:700;color:var(--accent);margin-bottom:6px}
+.jdpop .jdrow{display:flex;align-items:center;gap:4px;flex-wrap:wrap}
+.jdpop select{padding:5px 4px}
+.jdpop .jdmsg{color:var(--danger);font-size:12.5px;min-height:1.3em;margin-top:4px}
+.jdpop .jdact{display:flex;justify-content:flex-end;gap:6px;margin-top:4px}
+.jdpop.calpop{width:320px}
+.calhd{display:flex;align-items:center;justify-content:space-between;margin-bottom:6px}
+.calgrid{display:grid;grid-template-columns:repeat(7,1fr);gap:2px;text-align:center}
+.calgrid i{font-style:normal;font-size:12px;color:var(--muted);padding:2px 0}
+.calgrid i:first-child{color:var(--danger)}
+.jdpop.calpop.multi{width:380px}
+.calgrid .cd small{word-break:keep-all}
+.calpop.multi .calgrid .cd small{font-size:10px;font-weight:600;text-align:center;line-height:1.15}
+.calgrid .cd{display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:42px;padding:0;border-radius:6px;border:1px solid transparent;background:#fff;line-height:1.1}
+.calgrid .cd small{font-size:11px;min-height:12px;color:var(--accent);font-weight:700}
+.calgrid .cd.has{background:var(--accent-weak)}
+.calgrid .cd.past{opacity:.4}
+.calgrid .cd.today{border-color:var(--accent);box-shadow:inset 0 0 0 1px var(--accent)}
+.calgrid .cd.sel{background:var(--accent);color:#fff}
+.calgrid .cd.sel small{color:#fff}
+.jdnative{position:absolute!important;left:0;bottom:0;width:1px!important;height:1px!important;opacity:0;pointer-events:none;border:0;padding:0}
+tr.overdue td{background:#fff0ee}
+tr.overdue:hover td{background:#ffe5e1!important}
+tr.overdue td:first-child{box-shadow:inset 4px 0 0 var(--danger)}
+.tag.over{background:var(--danger);color:#fff;font-weight:700}
+tr.canceled td{color:var(--muted);background:#f6f6f6}
+tr.canceled .nm{text-decoration:line-through}
+input.bad{border-color:var(--danger);background:#fdf1f0;outline:2px solid #f0b4ae}
+.linkbtn{border:0;background:none;color:var(--accent);padding:0;text-decoration:underline;font-size:13px}
+.maptbl{border-collapse:collapse;font-size:13px;width:100%}
+.maptbl th,.maptbl td{border:1px solid var(--line2);padding:4px 6px;text-align:left;white-space:nowrap}
+.maptbl th{background:#f7f8fa}
+.mapgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:8px 14px;margin-bottom:12px}
+.mapgrid label{display:block;font-size:12.5px;color:var(--muted)}
+.mapgrid select{width:100%}
+.bulklist{border:1px solid var(--line);border-radius:6px;max-height:300px;overflow:auto}
+.bulklist label{display:grid;grid-template-columns:24px 80px 1fr 110px 60px;gap:8px;padding:6px 10px;border-bottom:1px solid var(--line2);align-items:center}
+.bulklist label.dis{color:var(--muted)}
+.form2{display:grid;grid-template-columns:150px 1fr;gap:10px 12px;align-items:center}
+#toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);background:#22303c;color:#fff;padding:10px 16px;border-radius:8px;display:none;gap:12px;align-items:center;box-shadow:0 8px 24px rgba(0,0,0,.25);z-index:100;font-size:14px}
+#toast button{background:none;border:1px solid #6b7b89;color:#fff;padding:2px 10px}
+@media (max-width:640px){
+  .toolbar input[type=search]{width:100%}
+  .summary{margin-left:0}
+  .res{grid-template-columns:1fr 1fr}
+  .form2{grid-template-columns:1fr}
+}
 </style>
 </head>
 <body>
-<div class="box">
-  <h1>ワクチン接種管理アプリはまだ入っていません</h1>
-  <p>このフォルダ（<code>apps/vaccine/</code>）に、ワクチン接種管理アプリのファイル一式を置いてください。
-  アプリの最初に開くファイルの名前を <code>index.html</code> にすると、このタブで表示されます（この案内ファイルは上書きしてかまいません）。</p>
-</div>
+<header class="top">
+  <div class="brand"><h1>ワクチン接種管理</h1><span class="badge" id="fyBadge"></span><span class="status" title="画面が最新かどうかの確認用です">版 2026-10-22 R</span></div>
+  <div class="status" id="status"></div>
+  <div class="actions">
+    <button id="btnMaster" title="患者マスタのExcel（.xlsx / .xlsm / .csv）を読み込みます">患者マスタ読込</button>
+    <button id="btnMasterView" title="アプリ内の患者マスタを見て、編集・削除します">患者マスタを見る</button>
+    <button id="btnFamily" title="患者家族マスタ（患者マスタとは別）を見て、追加・編集・削除・読み込みをします">患者家族マスタ</button>
+    <button id="btnImport" title="今までのワクチン管理票（.xlsm）や、このアプリで出力したExcelを取り込みます">管理票取込</button>
+    <button id="btnExport" title="管理票の形式でExcelファイルを出力します">Excel出力</button>
+    <span class="sep"></span>
+    <button id="btnBackup">バックアップ保存</button>
+    <button id="btnRestore">バックアップ復元</button>
+    <button id="btnSettings">設定</button>
+    <button id="btnExit" title="バックアップを保存して終了します（ブラウザ内データの削除は任意）">バックアップして終了</button>
+  </div>
+</header>
+<nav class="tabs" id="tabs"></nav>
+<main>
+  <div class="toolbar">
+    <button class="primary" id="btnNew">＋ 新規登録</button>
+    <button class="primary" id="btnDayDone" title="接種予定日の方を一覧で選び、接種完了にします">接種完了の入力</button>
+    <button id="btnSendList" title="予診票の発送日ごとに、仙台市／仙台市以外に分けて一覧を表示・印刷します">予診票発送一覧・印刷</button>
+    <button id="btnPlanList" title="接種予定日ごとの接種者一覧を表示・印刷します">接種予定者一覧・印刷</button>
+    <button id="btnDateSel" disabled title="チェックした方の予診票発送日・接種予定日をまとめて設定します">選択した方の日付を設定</button>
+    <button class="danger" id="btnDelSel" disabled>選択を削除</button>
+    <input type="search" id="q" placeholder="氏名・ふりがな・IDで絞り込み">
+    <select id="fStatus">
+      <option value="">すべて</option>
+      <option value="todo">未接種（キャンセル除く）</option>
+      <option value="done">接種済</option>
+      <option value="today">本日接種予定</option>
+      <option value="cancel">キャンセル</option>
+      <option value="overdue">予定日を過ぎた未接種</option>
+      <option value="noplan">接種予定日が未定（未入力）</option>
+    </select>
+    <select id="fGh"></select>
+    <select id="fSort">
+      <option value="no">受付順</option>
+      <option value="new">新しい順</option>
+      <option value="kana">ふりがな順</option>
+      <option value="plan">接種予定日順</option>
+      <option value="overdue">予定日を過ぎた未接種を先に</option>
+      <option value="noplan">接種予定日が未定を先に</option>
+    </select>
+    <div class="summary" id="summary"></div>
+  </div>
+  <div class="tablewrap">
+    <table class="list"><thead id="thead"></thead><tbody id="tbody"></tbody></table>
+    <div class="empty" id="empty"></div>
+  </div>
+</main>
+
+<div id="printArea"></div>
+<dialog id="dlg"><div class="dlg"><div class="dlg-h"><h2 id="dlgTitle"></h2><button class="x" id="dlgX" aria-label="閉じる">×</button></div><div class="dlg-b" id="dlgBody"></div><div class="dlg-f" id="dlgFoot"></div></div></dialog>
+<input type="file" id="fileMaster" accept=".xlsx,.xlsm,.csv" hidden>
+<input type="file" id="fileFamily" accept=".xlsx,.xlsm,.csv" hidden>
+<input type="file" id="fileImport" accept=".xlsx,.xlsm" hidden>
+<input type="file" id="fileRestore" accept=".json" hidden>
+<div id="toast"><span id="toastMsg"></span><button id="toastBtn"></button></div>
+
+<script>
+'use strict';
+/* ================= 定義 ================= */
+const KEY = 'vaccineKanri.v1';
+const MARK = '◯';
+const C = (h, src, w) => ({h, src, w});
+const DATE_FIELDS = [['recv','受付日'],['send','予診票発送日'],['plan','接種予定日'],['done','接種日']];
+const COMMON_TAIL = [C('備考','memo',16), C('ふりがな','#kana',16), C('生年月日','#birth',12), C('住所','#addr',30)];
+
+const VACCINES = [
+  { id:'flu', label:'インフルエンザ', sheet:'インフルワクチン', match:'インフル',
+    radios:[],
+    auto:{label:'65歳以上', test:a=>a!=null&&a>=65},
+    needOneOf:['shin','ippan'],
+    flags:[
+      {g:'対象区分', items:[['shin','60～64歳 身障1級'],['ippan','一般（助成対象外）'],['outside','仙台市以外']]},
+      {g:'確認事項', items:[['hikazei','市民税非課税'],['tsuchi','通知書確認'],['seiho','生活保護']]}],
+    cols:[C('ID','pid',9),C('受付日','recv',11),C('受付No','#no',7),C('施設名','#gh',14),C('氏名','#name',14),C('年齢','#age',6),
+      C('予診票\n発送日','send',11),C('接種\n予定日','plan',11),C('接種日','done',11),C('65歳以上','#auto',8),
+      C('60～64\n身障1級','sel:shin',8),C('一般\n(助成対象外)','sel:ippan',10),C('仙台市\n以外','sel:outside',8),
+      C('市民税\n非課税','sel:hikazei',8),C('通知書\n確認','sel:tsuchi',8),C('生活\n保護','sel:seiho',8), ...COMMON_TAIL] },
+  { id:'covid', label:'コロナ', sheet:' コロナワクチン', match:'コロナ',
+    radios:[{g:'ワクチン', items:[['comi','コミナティ'],['nuva','ヌバキソビット']]}],
+    auto:{label:'65歳以上', test:a=>a!=null&&a>=65},
+    needOneOf:['shin','ippan'],
+    flags:[
+      {g:'対象区分', items:[['shin','60～64歳 身障1級'],['ippan','一般（助成対象外）'],['outside','仙台市以外']]},
+      {g:'確認事項', items:[['hikazei','非課税'],['tsuchi','通知書確認'],['seiho','生活保護']]}],
+    cols:[C('ID','pid',9),C('受付日','recv',11),C('受付No','#no',7),C('施設名','#gh',14),C('氏名','#name',14),C('年齢','#age',6),
+      C('コミナティ','sel:comi',9),C('ヌバキソ\nビット','sel:nuva',9),
+      C('予診票\n発送日','send',11),C('接種\n予定日','plan',11),C('接種日','done',11),C('65歳以上','#auto',8),
+      C('60～64\n身障1級','sel:shin',8),C('一般\n(助成対象外)','sel:ippan',10),C('仙台市\n以外','sel:outside',8),
+      C('非課税','sel:hikazei',8),C('通知書\n確認','sel:tsuchi',8),C('生活\n保護','sel:seiho',8), ...COMMON_TAIL] },
+  { id:'zoster', label:'帯状疱疹', sheet:'帯状疱疹ワクチン', match:'帯状',
+    radios:[{g:'ワクチン', items:[['nama','生ワクチン'],['fukatsu','不活化ワクチン（2回接種）']]}],
+    auto:{label:'対象年齢（65～100歳の5歳刻み）', short:'対象年齢', test:a=>a!=null&&a>=65&&a<=100&&a%5===0},
+    needOneOf:['shin','ippan'],
+    flags:[
+      {g:'対象区分', items:[['shin','免疫不全・身障1級（60～64歳）'],['ippan','一般（助成対象外）'],['outside','仙台市以外']]},
+      {g:'確認事項', items:[['hikazei','非課税（1～4段階）'],['tsuchi','通知書確認'],['seiho','生活保護']]}],
+    cols:[C('ID','pid',9),C('受付日','recv',11),C('受付No','#no',7),C('施設名','#gh',14),C('氏名','#name',14),C('年齢','#age',6),
+      C('生ワクチン','sel:nama',9),C('不活化ワクチン\n（2回接種）','sel:fukatsu',12),
+      C('予診票\n発送日','send',11),C('接種\n予定日','plan',11),C('接種日','done',11),C('対象年齢\n65.70.75.80\n85.90.95.100','#auto',12),
+      C('免疫不全\n身障1級\n60～64歳','sel:shin',9),C('一般\n(助成対象外)','sel:ippan',10),C('仙台市\n以外','sel:outside',8),
+      C('非課税\n1～4段階','sel:hikazei',9),C('通知書\n確認','sel:tsuchi',8),C('生活保護','sel:seiho',8), ...COMMON_TAIL] },
+  { id:'pneumo', label:'肺炎球菌', sheet:' 肺炎球菌', match:'肺炎',
+    radios:[{g:'助成', items:[['josei','助成対象（5,000円）'],['joseigai','助成外（8,000円）']], suggest:a=>a===65?'josei':null}],
+    auto:null,
+    needOneOf:null,
+    flags:[
+      {g:'対象区分', items:[['outside','仙台市以外']]},
+      {g:'確認事項', items:[['hikazei','非課税'],['shinsei','申請'],['seiho','生活保護']]}],
+    cols:[C('ID','pid',9),C('受付日','recv',11),C('受付No','#no',7),C('施設名','#gh',14),C('氏名','#name',14),C('生年月日','#birth',12),C('年齢','#age',6),
+      C('接種予定日','plan',11),C('予診票発送日','send',11),C('接種日','done',11),
+      C('助成対象\n(5000円)','sel:josei',10),C('助成外\n(8000円)','sel:joseigai',10),C('仙台市\n以外','sel:outside',8),
+      C('非課税','sel:hikazei',8),C('申請','sel:shinsei',8),C('生活\n保護','sel:seiho',8),
+      C('備考','memo',16),C('ふりがな','#kana',16),C('住所','#addr',30)] },
+];
+const VAC = Object.fromEntries(VACCINES.map(v=>[v.id,v]));
+const LABEL = {}; VACCINES.forEach(v=>{ [...v.radios,...v.flags].forEach(g=>g.items.forEach(([k,l])=>{ LABEL[v.id+':'+k]=l; })); });
+
+/* ================= ユーティリティ ================= */
+const $ = (s, el=document) => el.querySelector(s);
+const $$ = (s, el=document) => Array.from(el.querySelectorAll(s));
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const p2 = n => String(n).padStart(2,'0');
+const todayStr = () => { const d=new Date(); return `${d.getFullYear()}-${p2(d.getMonth()+1)}-${p2(d.getDate())}`; };
+const nowStamp = () => { const d=new Date(); return `${d.getFullYear()}${p2(d.getMonth()+1)}${p2(d.getDate())}_${p2(d.getHours())}${p2(d.getMinutes())}`; };
+const fmtD = s => s ? s.replace(/-/g,'/') : '';
+const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2,8);
+const norm = s => String(s ?? '').normalize('NFKC').toLowerCase().replace(/[ァ-ヶ]/g, c => String.fromCharCode(c.charCodeAt(0)-0x60)).replace(/\s+/g,'');
+const normH = s => String(s ?? '').normalize('NFKC').replace(/\s+/g,'').toLowerCase();
+const colLetter = i => { let s=''; i++; while(i>0){ const m=(i-1)%26; s=String.fromCharCode(65+m)+s; i=Math.floor((i-1)/26); } return s; };
+
+function ageAt(birth, base){
+  if(!birth || !base) return null;
+  const [y,m,d] = birth.split('-').map(Number), [Y,M,D] = base.split('-').map(Number);
+  let a = Y - y; if(M<m || (M===m && D<d)) a--;
+  return a >= 0 ? a : null;
+}
+// 接種日の年齢（接種日 → 接種予定日 → 基準日の順で、日付があるものを使う）。「65歳以上」などの判定にも使う
+function vacAge(e, p, base){
+  const d = e.done || e.plan;
+  return d ? {age: ageAt(p.birth, d), basis: e.done ? 'done' : 'plan', date: d} : {age: ageAt(p.birth, base), basis: 'now', date: base};
+}
+const BASIS_TXT = {done:'接種日の年齢', plan:'接種予定日の年齢', now:'現在の年齢（接種日・予定日が未入力）'};
+function serialToStr(n){
+  const d = new Date(Math.round((Math.floor(n) - 25569) * 86400000));
+  return `${d.getUTCFullYear()}-${p2(d.getUTCMonth()+1)}-${p2(d.getUTCDate())}`;
+}
+function strToSerial(s){ const [y,m,d]=s.split('-').map(Number); return Date.UTC(y,m-1,d)/86400000 + 25569; }
+function validYMD(y,m,d){
+  const dt = new Date(Date.UTC(y,m-1,d));
+  return y>1850 && y<2200 && dt.getUTCMonth()===m-1 && dt.getUTCDate()===d ? `${y}-${p2(m)}-${p2(d)}` : '';
+}
+const ERA = {'明治':1867,'大正':1911,'昭和':1925,'平成':1988,'令和':2018,m:1867,t:1911,s:1925,h:1988,r:2018};
+function parseDate(v){
+  if(v == null || v === '') return '';
+  if(typeof v === 'number') return v > 60 && v < 80000 ? serialToStr(v) : '';
+  const s = String(v).normalize('NFKC').trim();
+  if(!s || s.startsWith('※')) return '';
+  let m;
+  if((m = s.match(/^(\d{4})(\d{2})(\d{2})$/))) return validYMD(+m[1],+m[2],+m[3]);
+  if(/^\d+(\.\d+)?$/.test(s)) return parseDate(Number(s));
+  if((m = s.match(/^(\d{4})[\/\-.年](\d{1,2})[\/\-.月](\d{1,2})/))) return validYMD(+m[1],+m[2],+m[3]);
+  const eraDate = (k, y, mo, d) => {   // 和暦 → 西暦（その元号に存在しない年は読み取れない扱い）
+    const name = ERA_NAME[k.toLowerCase()] || k, ymd = validYMD(ERA[name] + y, mo, d);
+    return ymd && toWareki(ymd).era === name ? ymd : '';
+  };
+  if((m = s.match(/^(明治|大正|昭和|平成|令和|[MTSHRmtshr])\s*(\d{1,2}|元)\s*[\/\-.年]\s*(\d{1,2})\s*[\/\-.月]\s*(\d{1,2})/))) return eraDate(m[1], m[2]==='元'?1:+m[2], +m[3], +m[4]);
+  if((m = s.match(/^([MTSHRmtshr])(\d{2})(\d{2})(\d{2})$/))) return eraDate(m[1], +m[2], +m[3], +m[4]);   // 例 S310303
+  return '';
+}
+const ERA_NAME = {m:'明治', t:'大正', s:'昭和', h:'平成', r:'令和'};
+// 西暦（YYYY-MM-DD）→ 和暦
+function toWareki(ymd){
+  if(!ymd) return {era:'', year:0, text:''};
+  const [y,m,d] = ymd.split('-').map(Number), n = y*10000 + m*100 + d;
+  const e = n >= 20190501 ? ['令和',2018] : n >= 19890108 ? ['平成',1988] : n >= 19261225 ? ['昭和',1925] : n >= 19120730 ? ['大正',1911] : n >= 18680125 ? ['明治',1867] : null;
+  if(!e) return {era:'', year:y, text:`${y}年${m}月${d}日`};
+  const yr = y - e[1];
+  return {era:e[0], year:yr, text:`${e[0]}${yr===1?'元':yr}年${m}月${d}日`};
+}
+function toIdStr(v){
+  if(v == null) return '';
+  if(typeof v === 'number') return Number.isInteger(v) ? String(v) : String(v);
+  return String(v).normalize('NFKC').trim();
+}
+const strVal = v => v == null ? '' : (typeof v === 'number' ? String(v) : String(v).trim());
+const isMarked = v => { if(v == null || v === false) return false; const s = String(v).trim(); return s !== '' && s !== '0' && s !== '×' && s !== '✕'; };
+
+/* ================= 状態 ================= */
+function defaultState(){
+  return { ver:1, master:{list:[], fileName:'', loadedAt:''},
+    entries:Object.fromEntries(VACCINES.map(v=>[v.id,[]])),
+    settings:{fy:'令和8年度', baseMode:'today', baseDate:''},
+    family:{list:[], fileName:'', loadedAt:'', edited:false},   // 患者家族マスタ（患者マスタとは別。IDは「M0001」のように自動で付ける）
+    extras:[],   // 以前の版の手入力の患者（読み込み時に患者家族マスタへ移す）
+    lastBackup:'', dirty:false };
+}
+let state = defaultState();
+let masterMap = new Map(), familyMap = new Map(), searchIdx = [];
+let cur = 'flu';
+
+function load(){
+  try{
+    const raw = localStorage.getItem(KEY);
+    if(raw){
+      const s = JSON.parse(raw), d = defaultState();
+      state = {...d, ...s, master:{...d.master, ...(s.master||{})}, family:{...d.family, ...(s.family||{})}, settings:{...d.settings, ...(s.settings||{})}, entries:{...d.entries, ...(s.entries||{})}};
+    }
+  }catch(e){ alert('保存データの読み込みに失敗しました: ' + e.message); }
+  try{ cur = localStorage.getItem(KEY+'.tab') || 'flu'; if(!VAC[cur]) cur='flu'; }catch(e){}
+  migrateExtras();
+  rebuildMaster();
+}
+// 以前の版で「マスタにない患者」として保存していた方を、患者家族マスタへ移す
+function migrateExtras(){
+  if(!state.family) state.family = {list:[], fileName:'', loadedAt:'', edited:false};
+  if(state.extras && state.extras.length){
+    state.extras.forEach(x=>{ if(!state.family.list.some(f=>f.id===x.id)){ const {manual, imported, ...rec} = x; state.family.list.push(rec); } });
+  }
+  state.extras = [];
+}
+function persist(markDirty=true){
+  if(markDirty) state.dirty = true;
+  try{ localStorage.setItem(KEY, JSON.stringify(state)); }
+  catch(e){ alert('ブラウザへの保存に失敗しました。バックアップ保存を行ってください。\n' + e.message); }
+}
+function rebuildMaster(){
+  masterMap = new Map(state.master.list.map(p=>[p.id,p]));
+  familyMap = new Map(state.family.list.map(p=>[p.id,p]));
+  const fam = state.family.list.filter(p=>!masterMap.has(p.id)).map(p=>({...p, fam:true}));
+  searchIdx = [...state.master.list, ...fam].map(p=>({p, s:norm([p.id,p.name,p.kana,p.gh,p.rel,p.relToName].join(' ')), k:norm(p.kana)}));
+}
+// 患者家族マスタのID（M0001、M0002…）を自動で付ける。used に入っているIDは避ける
+const nextFamilyId = (used = new Set()) => {
+  const all = new Set([...used, ...familyMap.keys(), ...VACCINES.flatMap(v=>state.entries[v.id].map(e=>e.pid))]);
+  let n = 1; while(all.has('M'+String(n).padStart(4,'0')) || masterMap.has('M'+String(n).padStart(4,'0'))) n++;
+  return 'M' + String(n).padStart(4,'0');
+};
+function upsertFamily(rec){
+  const {fam, manual, imported, ...r} = rec, i = state.family.list.findIndex(x=>x.id===r.id);
+  if(i >= 0) state.family.list[i] = r; else state.family.list.push(r);
+  rebuildMaster();
+}
+const REL_LIST = ['配偶者（夫・妻）','子','親','兄弟姉妹','孫','祖父母','子の配偶者','その他（手入力）'];
+const relText = p => p && p.rel ? `${p.relToName?p.relToName+' さんの':''}${p.rel}` : '';
+const baseDate = () => state.settings.baseMode === 'fixed' && state.settings.baseDate ? state.settings.baseDate : todayStr();
+function patientOf(e){ return masterMap.get(e.pid) || familyMap.get(e.pid) || e.snap || {id:e.pid}; }
+const inMaster = e => masterMap.has(e.pid);
+const inFamily = e => !masterMap.has(e.pid) && familyMap.has(e.pid);
+function computeNos(list){ const m = new Map(); let n = 0; for(const e of list){ if(e.recv){ n++; m.set(e.id, n); } } return m; }
+
+/* ================= 画面描画 ================= */
+function renderAll(){ renderHeader(); renderTabs(); renderList(); }
+function renderHeader(){
+  $('#fyBadge').textContent = state.settings.fy;
+  const m = state.master;
+  const base = state.settings.baseMode==='fixed' && state.settings.baseDate ? `年齢基準日 <b>${fmtD(state.settings.baseDate)}</b>` : '年齢基準日 <b>今日</b>';
+  const mst = m.list.length ? `患者マスタ <b>${m.list.length.toLocaleString()}名</b>（${esc(m.loadedAt)} 読込）${m.edited?' <span class="warnTxt" title="元のExcelとは内容が違います">アプリ内で編集あり</span>':''}` : '<span class="warnTxt">患者マスタ未読込</span>';
+  const bk = state.lastBackup ? `最終バックアップ ${esc(state.lastBackup)}` : 'バックアップ未実施';
+  $('#status').innerHTML = `${mst}　患者家族マスタ <b>${state.family.list.length.toLocaleString()}名</b>　${base}${state.dirty ? `<span class="warnTxt">${bk}（未保存の変更あり）</span>` : bk}`;
+}
+function renderTabs(){
+  $('#tabs').innerHTML = VACCINES.map(v=>`<button data-v="${v.id}" class="${v.id===cur?'active':''}">${esc(v.label)}<span class="cnt">${state.entries[v.id].length}</span></button>`).join('');
+}
+function radioText(v, e){
+  return v.radios.map(g=>g.items.filter(([k])=>e.sel[k]).map(([,l])=>l.replace(/（.*/,'')).join('・')).filter(Boolean).join(' ');
+}
+const selIds = new Set();
+// 接種予定日が未定（未入力）：接種予定日も接種日も入っておらず、キャンセルでもない
+const isNoPlan = e => !e.plan && !e.done && !e.cancel;
+// 接種予定日を過ぎても接種が済んでいない（キャンセルでない）場合の超過日数。該当しなければ 0
+function overdueDays(e){
+  if(!e.plan || e.done || e.cancel) return 0;
+  const t = todayStr(); if(e.plan >= t) return 0;
+  const [y1,m1,d1] = e.plan.split('-').map(Number), [y2,m2,d2] = t.split('-').map(Number);
+  return Math.round((Date.UTC(y2,m2-1,d2) - Date.UTC(y1,m1-1,d1)) / 86400000);
+}
+function updDelBtn(){
+  const b = $('#btnDelSel'); b.disabled = !selIds.size; b.textContent = selIds.size ? `選択した${selIds.size}件を削除` : '選択を削除';
+  const d = $('#btnDateSel'); d.disabled = !selIds.size; d.textContent = selIds.size ? `選択した${selIds.size}件の日付を設定` : '選択した方の日付を設定';
+}
+// チェックした方の予診票発送日・接種予定日をまとめて設定する
+function openBulkDate(){
+  const list = state.entries[cur], targets = list.filter(e=>selIds.has(e.id));
+  if(!targets.length) return;
+  const names = targets.slice(0,4).map(e=>patientOf(e).name||e.pid).join('、') + (targets.length>4?` ほか${targets.length-4}名`:'');
+  const vals = {send:'', plan:''};
+  openDlg(`${VAC[cur].label}　日付のまとめて設定`, `
+    <p style="margin-top:0">選択中：<b>${targets.length}名</b>（${esc(names)}）</p>
+    <div class="dates">
+      <div class="df"><label>予診票発送日</label><div class="row"><input type="date" data-k="send"><button class="small" data-today="send">今日</button></div></div>
+      <div class="df"><label>接種予定日</label><div class="row"><input type="date" data-k="plan"><button class="small" data-today="plan">今日</button></div></div>
+    </div>
+    <p class="hint">空欄の項目は変更しません。</p>
+    <label style="display:block;margin-top:6px"><input type="checkbox" id="bdKeep" checked> すでに日付が入っている方は変更しない</label>
+    <div class="warns" id="bdWarn"></div>`,
+    `<span class="grow"></span><button id="bdCancel">キャンセル</button><button class="primary" id="bdOk">設定する</button>`, 'min(560px,96vw)');
+  const chk = () => { const bad = vals.send && vals.plan && vals.send > vals.plan; $('#bdWarn').innerHTML = bad ? '<div class="err">⚠ 予診票発送日が接種予定日よりあとになっています。日付を確認してください。</div>' : ''; $$('#dlgBody input[type=date]').forEach(i=>i.classList.toggle('bad', !!bad)); };
+  $$('#dlgBody input[type=date]').forEach(i=>i.onchange=()=>{ vals[i.dataset.k] = i.value; chk(); });
+  $$('#dlgBody [data-today]').forEach(b=>b.onclick=()=>{ const k = b.dataset.today; vals[k] = todayStr(); $(`#dlgBody input[data-k=${k}]`).value = vals[k]; chk(); });
+  $('#bdCancel').onclick = () => dlg.close();
+  $('#bdOk').onclick = () => {
+    if(!vals.send && !vals.plan){ alert('設定する日付を入力してください。'); return; }
+    if(vals.send && vals.plan && vals.send > vals.plan && !confirm('予診票発送日が接種予定日よりあとになっています。このまま設定しますか？')) return;
+    const keep = $('#bdKeep').checked, prev = [];
+    targets.forEach(e=>{
+      const old = {send:e.send, plan:e.plan}; let ch = false;
+      ['send','plan'].forEach(k=>{ if(vals[k] && !(keep && e[k])){ e[k] = vals[k]; ch = true; } });
+      if(ch) prev.push([e, old]);
+    });
+    persist(); renderAll(); dlg.close();
+    const skipped = targets.length - prev.length;
+    toast(`${prev.length}名の日付を設定しました${skipped?`（設定済みの${skipped}名は変更なし）`:''}`, '元に戻す', ()=>{ prev.forEach(([e,o])=>Object.assign(e,o)); persist(); renderAll(); });
+  };
+}
+function renderList(){
+  const v = VAC[cur], all = state.entries[cur], nos = computeNos(all), base = baseDate();
+  // 施設フィルタ
+  const ghs = [...new Set(all.map(e=>patientOf(e).gh).filter(Boolean))].sort((a,b)=>a.localeCompare(b,'ja'));
+  const fGh = $('#fGh'), prevGh = fGh.value;
+  fGh.innerHTML = `<option value="">施設：すべて</option><option value="__none">施設なし</option>` + ghs.map(g=>`<option>${esc(g)}</option>`).join('');
+  fGh.value = ghs.includes(prevGh) || prevGh==='__none' ? prevGh : '';
+
+  const q = norm($('#q').value), st = $('#fStatus').value, gh = fGh.value, sort = $('#fSort').value;
+  let rows = all.map((e,i)=>({e, i, p:patientOf(e)}));
+  if(q) rows = rows.filter(r=>norm([r.e.pid, r.p.name, r.p.kana, r.e.memo].join(' ')).includes(q));
+  if(st==='todo') rows = rows.filter(r=>!r.e.done && !r.e.cancel);
+  if(st==='done') rows = rows.filter(r=>r.e.done);
+  if(st==='today') rows = rows.filter(r=>r.e.plan===todayStr() && !r.e.cancel);
+  if(st==='cancel') rows = rows.filter(r=>r.e.cancel);
+  if(st==='overdue') rows = rows.filter(r=>overdueDays(r.e) > 0);
+  if(st==='noplan') rows = rows.filter(r=>isNoPlan(r.e));
+  if(gh==='__none') rows = rows.filter(r=>!r.p.gh); else if(gh) rows = rows.filter(r=>r.p.gh===gh);
+  if(sort==='new') rows.reverse();
+  if(sort==='kana') rows.sort((a,b)=>norm(a.p.kana).localeCompare(norm(b.p.kana),'ja'));
+  if(sort==='plan') rows.sort((a,b)=>(a.e.plan||'9999').localeCompare(b.e.plan||'9999'));
+  if(sort==='noplan') rows.sort((a,b)=>{ const x = isNoPlan(a.e), y = isNoPlan(b.e); return x === y ? a.i - b.i : (x ? -1 : 1); });
+  if(sort==='overdue') rows.sort((a,b)=>{ const x = overdueDays(a.e) > 0, y = overdueDays(b.e) > 0; return x === y ? (x ? a.e.plan.localeCompare(b.e.plan) : a.i - b.i) : (x ? -1 : 1); });
+
+  const hasR = v.radios.length > 0;
+  const liveIds = new Set(all.map(e=>e.id)); selIds.forEach(id=>{ if(!liveIds.has(id)) selIds.delete(id); });
+  const allChecked = rows.length > 0 && rows.every(r=>selIds.has(r.e.id));
+  $('#thead').innerHTML = `<tr><th><input type="checkbox" id="chkAll" title="表示中をすべて選択" ${allChecked?'checked':''}></th><th>受付No</th><th>受付日</th><th>ID</th><th>氏名</th><th title="今日（基準日）時点の年齢">現在<br>年齢</th><th title="接種日時点の年齢（接種日が未定のときは接種予定日時点・薄い字）">接種時<br>年齢</th><th>施設</th>${hasR?`<th>${esc(v.radios[0].g)}</th>`:''}<th>予診票発送日</th><th>接種予定日</th><th>接種日</th><th>区分・確認</th><th>備考</th></tr>`;
+  $('#tbody').innerHTML = rows.map(({e,p})=>{
+    const age = ageAt(p.birth, base), va = vacAge(e, p, base);
+    const tags = [];
+    if(v.auto && v.auto.test(va.age)) tags.push(`<span class="tag auto" title="${BASIS_TXT[va.basis]}（${va.age}歳）で判定">${esc(v.auto.short||v.auto.label)}</span>`);
+    v.flags.forEach(g=>g.items.forEach(([k,l])=>{ if(e.sel[k]) tags.push(`<span class="tag">${esc(l.replace(/（.*/,''))}</span>`); }));
+    const name = inMaster(e) || (p.name) ? esc(p.name||'') : '<span class="tag warn">※未登録</span>';
+    if(e.cancel) tags.unshift('<span class="tag warn">キャンセル</span>');
+    const doneCell = e.cancel ? `<button class="small qcancel" title="キャンセルを取り消して予定に戻します">取消を戻す</button>`
+      : e.done ? `<span class="done">${fmtD(e.done)}</span>`
+      : `<button class="small qdone" title="接種日に今日の日付を入れます">本日接種</button> <button class="small qcancel" title="この方の接種予定をキャンセルします">キャンセル</button>`;
+    const od = overdueDays(e);
+    return `<tr data-id="${e.id}"${e.cancel?' class="canceled"':od?' class="overdue"':''}>
+      <td class="chk"><input type="checkbox" class="rowchk" ${selIds.has(e.id)?'checked':''}></td>
+      <td class="num">${nos.get(e.id)||''}</td><td>${fmtD(e.recv)}</td><td>${esc(e.pid)}</td>
+      <td><span class="nm">${name}</span>${p.kana?`<span class="kana">${esc(p.kana)}</span>`:''}${p.rel?`<span class="kana" title="続柄">家族：${esc(relText(p))}</span>`:''}</td>
+      <td class="num">${age ?? ''}</td><td class="num">${(()=>{ const d = e.done || e.plan, a2 = ageAt(p.birth, d); return a2 == null ? '' : (e.done ? a2 : `<span style="color:var(--muted)" title="接種予定日時点">${a2}</span>`); })()}</td><td>${esc(p.gh||'')}</td>
+      ${hasR?`<td>${esc(radioText(v,e))}</td>`:''}
+      <td>${fmtD(e.send)}</td><td>${fmtD(e.plan)}${isNoPlan(e)?'<span class="tag warn" title="接種予定日が未入力です">未定</span>':''}${od?` <span class="tag over" title="接種予定日を過ぎても接種が済んでいません">${od}日超過</span>`:''}</td>
+      <td>${doneCell}</td>
+      <td>${tags.join('')}</td><td class="memo" title="${esc(e.memo)}">${esc(e.memo)}</td></tr>`;
+  }).join('');
+  const doneN = all.filter(e=>e.done && !e.cancel).length, cancelN = all.filter(e=>e.cancel).length, overN = all.filter(e=>overdueDays(e)>0).length, noPlanN = all.filter(isNoPlan).length;
+  $('#summary').innerHTML = `登録 <b>${all.length}</b> 件　接種済 <b>${doneN}</b>　未接種 <b>${all.length-doneN-cancelN}</b>${overN||noPlanN?`（${overN?`<span style="color:var(--danger);font-weight:700">予定超過 ${overN}</span>`:''}${overN&&noPlanN?'・':''}${noPlanN?`<span style="color:var(--warn);font-weight:700">予定日未定 ${noPlanN}</span>`:''}）`:''}${cancelN?`　キャンセル <b>${cancelN}</b>`:''}${rows.length!==all.length?`　（表示 ${rows.length} 件）`:''}`;
+  updDelBtn();
+  $('#empty').innerHTML = all.length ? (rows.length ? '' : '条件に合う登録はありません。') :
+    (state.master.list.length ? `まだ登録がありません。「＋ 新規登録」または「施設一括登録」から登録してください。` : `はじめに右上の「患者マスタ読込」から、患者マスタのExcelファイルを読み込んでください。`);
+}
+
+/* ================= ダイアログ ================= */
+const dlg = $('#dlg');
+function openDlg(title, body, foot, width){
+  closeEraPicker();
+  $('#dlgTitle').textContent = title;
+  $('#dlgBody').innerHTML = body;
+  $('#dlgFoot').innerHTML = foot;
+  dlg.style.width = width || '';
+  if(!dlg.open) dlg.showModal();
+  $('#dlgBody').scrollTop = 0;
+  // 西暦・和暦の入力欄（enhanceDates）は、患者家族マスタの入力画面だけで使う（他の日付欄は、これまでのカレンダー入力）
+}
+/* ---------- 日付の入力（西暦・和暦のどちらでも入力できる） ---------- */
+// 日付欄（input[type=date]）に、文字で入力する欄を付ける。「1956/3/3」「S31.3.3」「昭和31年3月3日」「令和8年10月25日」などが使える。
+// 入力した日付の、もう一方の表記（西暦⇔和暦）も、すぐ下に表示する。カレンダーで選ぶこともできる。
+const dvDesc = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value');
+function enhanceDates(root){ $$('input[type=date]', root).forEach(jdate); }
+// 和暦で日付を選ぶ小さな画面（元号・年・月・日を選ぶ）
+const ERAS = ['令和','平成','昭和','大正','明治'];
+function eraMaxYear(era){ return era==='令和' ? Math.max(8, new Date().getFullYear() - 2018 + 1) : era==='平成' ? 31 : era==='昭和' ? 64 : era==='大正' ? 15 : 45; }
+function closeEraPicker(){ $$('.jdpop').forEach(p=>p.remove()); document.removeEventListener('click', closeEraPickerOutside, true); }
+function closeEraPickerOutside(ev){ if(!ev.target.closest('.jdpop')) closeEraPicker(); }
+function openEraPicker(el, anchor, onPick){
+  closeEraPicker();
+  const cur = el.value ? toWareki(el.value) : null, isBirth = /birth/i.test(el.id || '') || /birth/i.test(el.dataset.k || '');
+  const init = cur && cur.era ? {era:cur.era, y:cur.year, m:+el.value.split('-')[1], d:+el.value.split('-')[2]} : {era: isBirth ? '昭和' : '令和', y: isBirth ? 25 : Math.max(1, new Date().getFullYear() - 2018), m:1, d:1};
+  const pop = document.createElement('div'); pop.className = 'jdpop';
+  const sel = (cls, n, from=1) => `<select class="${cls}">${Array.from({length:n}, (_,i)=>`<option value="${i+from}">${i+from}</option>`).join('')}</select>`;
+  pop.innerHTML = `<div class="jdpt">和暦で選ぶ</div><div class="jdrow">
+    <select class="e">${ERAS.map(x=>`<option>${x}</option>`).join('')}</select><select class="y"></select>年
+    ${sel('m',12)}月 <select class="d"></select>日</div>
+    <div class="jdmsg"></div><div class="jdact"><button type="button" class="small" data-x>閉じる</button><button type="button" class="small primary" data-ok>決定</button></div>`;
+  dlg.appendChild(pop);
+  const E = pop.querySelector('.e'), Y = pop.querySelector('.y'), M = pop.querySelector('.m'), D = pop.querySelector('.d'), msg = pop.querySelector('.jdmsg');
+  const fillY = () => { const keep = +Y.value || init.y, n = eraMaxYear(E.value); Y.innerHTML = Array.from({length:n}, (_,i)=>`<option value="${i+1}">${i+1===1?'元':i+1}</option>`).join(''); Y.value = Math.min(keep, n); };
+  const fillD = () => { const keep = +D.value || init.d, wy = ERA[E.value] + (+Y.value), dim = new Date(wy, +M.value, 0).getDate(); D.innerHTML = Array.from({length:dim}, (_,i)=>`<option value="${i+1}">${i+1}</option>`).join(''); D.value = Math.min(keep, dim); };
+  E.value = init.era; fillY(); Y.value = init.y <= eraMaxYear(E.value) ? init.y : 1; M.value = init.m; fillD(); D.value = init.d;
+  E.onchange = () => { fillY(); fillD(); msg.textContent = ''; };
+  Y.onchange = () => { fillD(); msg.textContent = ''; };
+  M.onchange = () => { fillD(); msg.textContent = ''; };
+  pop.querySelector('[data-x]').onclick = closeEraPicker;
+  pop.querySelector('[data-ok]').onclick = () => {
+    const ymd = validYMD(ERA[E.value] + (+Y.value), +M.value, +D.value);
+    if(!ymd || toWareki(ymd).era !== E.value){ msg.textContent = `${E.value}${Y.value}年${M.value}月${D.value}日は、存在しない日付です。`; return; }
+    dvDesc.set.call(el, ymd); closeEraPicker(); onPick && onPick();
+  };
+  // 位置：押したボタンの下（画面の端からはみ出さないようにする）
+  const r = anchor.getBoundingClientRect(), pw = 300;
+  pop.style.left = Math.max(8, Math.min(r.left, window.innerWidth - pw - 8)) + 'px';
+  pop.style.top = Math.min(r.bottom + 4, window.innerHeight - 190) + 'px';
+  setTimeout(() => document.addEventListener('click', closeEraPickerOutside, true), 0);
+}
+function jdate(el){
+  if(el._jd) return; el._jd = true;
+  const wrap = document.createElement('span'); wrap.className = 'jdwrap';
+  const line = document.createElement('span'); line.className = 'jdline';
+  const tx = document.createElement('input'); tx.type = 'text'; tx.className = 'jd'; tx.autocomplete = 'off'; tx.placeholder = '西暦・和暦で入力'; tx.title = '例：1956/3/3　S31.3.3　昭和31年3月3日　令和8年10月25日';
+  tx.setAttribute('aria-label', '日付（西暦・和暦どちらでも入力できます）');
+  const btn = document.createElement('button'); btn.type = 'button'; btn.className = 'small jdbtn'; btn.textContent = '📅'; btn.title = 'カレンダーから選ぶ';
+  const wbtn = document.createElement('button'); wbtn.type = 'button'; wbtn.className = 'small jdbtn'; wbtn.textContent = '和暦'; wbtn.title = '元号・年・月・日を選んで入力する';
+  const hint = document.createElement('span'); hint.className = 'jdhint';
+  el.parentNode.insertBefore(wrap, el); line.append(tx, btn, wbtn); wrap.append(line, hint, el); el.classList.add('jdnative'); el.tabIndex = -1;
+  const sync = () => {
+    const v = dvDesc.get.call(el);
+    tx.value = v ? v.replace(/-/g,'/') : ''; tx.classList.remove('err');
+    hint.textContent = v ? toWareki(v).text : ''; hint.classList.remove('err');
+  };
+  Object.defineProperty(el, 'value', {configurable:true, get(){ return dvDesc.get.call(el); }, set(v){ dvDesc.set.call(el, v); sync(); }});
+  const commit = () => {
+    const t = tx.value.trim();
+    if(!t){ if(el.value){ dvDesc.set.call(el, ''); el.dispatchEvent(new Event('change', {bubbles:true})); } sync(); return; }
+    const d = parseDate(t);
+    if(!d){ tx.classList.add('err'); hint.textContent = '読み取れません（例：1956/3/3　S31.3.3　昭和31年3月3日）'; hint.classList.add('err'); return; }
+    const changed = d !== el.value; dvDesc.set.call(el, d); sync();
+    if(changed) el.dispatchEvent(new Event('change', {bubbles:true}));
+  };
+  tx.addEventListener('change', commit);
+  tx.addEventListener('keydown', ev => { if(ev.key === 'Enter'){ ev.preventDefault(); commit(); } });
+  el.addEventListener('change', sync);
+  btn.addEventListener('click', () => { try{ el.showPicker(); }catch(e){ el.focus(); } });
+  wbtn.addEventListener('click', ev => { ev.stopPropagation(); openEraPicker(el, wbtn, () => { sync(); el.dispatchEvent(new Event('change', {bubbles:true})); }); });
+  new MutationObserver(() => tx.classList.toggle('bad', el.classList.contains('bad'))).observe(el, {attributes:true, attributeFilter:['class']});
+  sync();
+}
+/* 予定のある日と人数を表示するカレンダー（counts: Map(日付 → 人数)）。過去の日付は薄く表示する */
+// カレンダーの人数（counts の値は {ワクチンID: 人数}）。種類別の略称：イ=インフルエンザ コ=コロナ 帯=帯状疱疹 肺=肺炎球菌
+const VSHORT = {flu:'イ', covid:'コ', zoster:'帯', pneumo:'肺'}, VSHORT_NOTE = 'イ=インフルエンザ　コ=コロナ　帯=帯状疱疹　肺=肺炎球菌';
+const VPRINT = {flu:'インフル', covid:'コロナ', zoster:'帯状疱疹', pneumo:'肺炎球菌'};   // 印刷用のワクチン名
+const cntTotal = o => o ? Object.values(o).reduce((a,b)=>a+b, 0) : 0;
+const cntParts = o => VACCINES.filter(v=>o && o[v.id]).map(v=>[v, o[v.id]]);
+// 印刷用のカレンダー（日付と人数のみ。multi のときは種類別）
+function calPrintHtml(y, m, counts, title, sub, pb, multi){
+  const first = new Date(y, m-1, 1).getDay(), dim = new Date(y, m, 0).getDate(), cells = [];
+  for(let i = 0; i < first; i++) cells.push('<td class="ce"></td>');
+  for(let d = 1; d <= dim; d++){
+    const o = counts.get(`${y}-${p2(m)}-${p2(d)}`), n = cntTotal(o), wd = new Date(y, m-1, d).getDay();
+    const txt = !n ? '' : multi ? cntParts(o).map(([v,c])=>`${VPRINT[v.id]} ${c}人`).join('<br>') : n + '人';
+    const past = `${y}-${p2(m)}-${p2(d)}` < todayStr();
+    cells.push(`<td class="cl${wd===0?' su':wd===6?' sa':''}${past?' pst':''}"><span class="cdn">${d}</span><span class="cnn${multi?' mu':''}">${txt}</span></td>`);
+  }
+  while(cells.length % 7) cells.push('<td class="ce"></td>');
+  let rows = ''; for(let i = 0; i < cells.length; i += 7) rows += `<tr>${cells.slice(i, i+7).join('')}</tr>`;
+  return `<div class="pl calprint${pb?' pb':''}"><div class="calstamp">出力日 ${fmtD(todayStr())}</div><h2>${esc(title)}　${y}年${m}月</h2><div class="sub">${esc(state.settings.fy)}　${esc(sub)}</div>
+    <table><thead><tr>${[...WD].map(w=>`<th class="c">${w}</th>`).join('')}</tr></thead><tbody>${rows}</tbody></table></div>`;
+}
+function openCalPopup(anchor, counts, value, onPick, printInfo){
+  closeEraPicker();
+  const t = todayStr(), pop = document.createElement('div'); pop.className = 'jdpop calpop'; let pn = 1;
+  const multi = !!(printInfo && printInfo[2]); if(multi) pop.classList.add('multi');
+  let [y, m] = (/^\d{4}-\d{2}-\d{2}$/.test(value) ? value : t).split('-').map(Number);
+  const draw = () => {
+    const first = new Date(y, m-1, 1).getDay(), dim = new Date(y, m, 0).getDate();
+    let cells = '';
+    for(let i = 0; i < first; i++) cells += '<span></span>';
+    for(let d = 1; d <= dim; d++){
+      const s = `${y}-${p2(m)}-${p2(d)}`, o = counts.get(s), n = cntTotal(o);
+      const txt = !n ? '' : multi ? cntParts(o).map(([v,c])=>`${VSHORT[v.id]}${c}`).join(' ') : n;
+      cells += `<button type="button" data-d="${s}" class="cd${s<t?' past':''}${s===t?' today':''}${s===value?' sel':''}${n?' has':''}"${n?` title="${esc(cntParts(o).map(([v,c])=>`${v.label} ${c}名`).join('、'))}（計${n}名）"`:''}><span>${d}</span><small>${txt}</small></button>`;
+    }
+    pop.innerHTML = `<div class="calhd"><button type="button" class="small" data-mv="-1">◀</button><b>${y}年${m}月</b><button type="button" class="small" data-mv="1">▶</button></div>
+      <div class="calgrid">${[...WD].map(w=>`<i>${w}</i>`).join('')}${cells}</div>
+      <div class="hint" style="margin-top:6px">${multi?`${VSHORT_NOTE}の人数です。`:'数字は予定の人数です。'}薄い日付は過去です。</div>
+      <div class="jdact" style="align-items:center;flex-wrap:wrap">${y}年${m}月から<select data-pn>${[1,2,3,4,5,6,12].map(n=>`<option value="${n}" ${n===pn?'selected':''}>${n}か月分</option>`).join('')}</select><button type="button" class="small" data-print>印刷</button><button type="button" class="small" data-x>閉じる</button></div>`;
+  };
+  draw(); dlg.appendChild(pop);
+  pop.onclick = ev => {
+    const mv = ev.target.closest('[data-mv]'), dd = ev.target.closest('[data-d]');
+    if(mv){ m += +mv.dataset.mv; if(m < 1){ m = 12; y--; } if(m > 12){ m = 1; y++; } draw(); }
+    else if(dd){ closeEraPicker(); onPick(dd.dataset.d); }
+    else if(ev.target.closest('[data-print]')){
+      pn = +pop.querySelector('[data-pn]').value; let h = '';
+      for(let i = 0, yy = y, mm = m; i < pn; i++){ h += calPrintHtml(yy, mm, counts, printInfo[0], printInfo[1], i > 0, multi); if(++mm > 12){ mm = 1; yy++; } }
+      $('#printArea').innerHTML = h; window.print();
+    }
+    else if(ev.target.closest('[data-x]')) closeEraPicker();
+  };
+  const r = anchor.getBoundingClientRect(), pw = 320;
+  pop.style.left = Math.max(8, Math.min(r.left, window.innerWidth - pw - 8)) + 'px';
+  pop.style.top = Math.max(8, Math.min(r.bottom + 4, window.innerHeight - pop.offsetHeight - 8)) + 'px';
+  setTimeout(() => document.addEventListener('click', closeEraPickerOutside, true), 0);
+}
+$('#dlgX').onclick = () => dlg.close();
+dlg.addEventListener('close', closeEraPicker);
+
+/* ---------- 個別登録・編集 ---------- */
+let ed = null;
+function newEntry(){ return {id:uid(), pid:'', recv:todayStr(), send:'', plan:'', done:'', memo:'', sel:{}, snap:null, created:Date.now()}; }
+function openEntry(entry, keep){
+  const v = VAC[cur];
+  const isNew = !entry;
+  const e = isNew ? newEntry() : JSON.parse(JSON.stringify(entry));
+  if(isNew && keep){ ['recv','send','plan','done'].forEach(k=>e[k]=keep[k]); v.radios.forEach(g=>g.items.forEach(([k])=>{ if(keep.sel[k]) e.sel[k]=true; })); }
+  ed = {v, e, isNew, autoNotes:{}, manual:false};
+  const dates = DATE_FIELDS.map(([k,l])=>`<div class="df"><label>${l}</label><div class="row"><input type="date" data-k="${k}" value="${e[k]||''}"><button class="small" data-today="${k}">今日</button><button class="small" data-clear="${k}" title="消去">×</button></div></div>`).join('');
+  const body = `
+    <div class="sec"><h3>① 患者</h3><div id="patArea"></div></div>
+    <div class="sec"><h3>② 日付</h3><div class="dates">${dates}</div></div>
+    <div class="sec"><h3>③ 区分・確認</h3><div id="selArea"></div></div>
+    <div class="sec"><h3>備考</h3><input type="text" id="memo" style="width:100%" value="${esc(e.memo)}"></div>
+    <div class="warns" id="warns"></div>`;
+  const foot = `${isNew?'':'<button class="danger" id="btnDel">削除</button>'}${isNew?'':`<button id="btnCx">${e.cancel?'キャンセルを取り消す':'接種予定をキャンセル'}</button>`}<span class="grow"></span>
+    <button id="btnCancel">キャンセル</button>
+    ${isNew?'<button id="btnSaveNext">保存して続けて入力</button>':''}
+    <button class="primary" id="btnSave">保存</button>`;
+  openDlg(`${v.label}　${isNew?'新規登録':'登録内容の編集'}`, body, foot);
+  renderPat(); renderSel(); renderWarns();
+  $$('#dlgBody input[type=date]').forEach(inp=>inp.onchange=()=>{ e[inp.dataset.k]=inp.value; renderWarns(); });
+  $$('#dlgBody [data-today]').forEach(b=>b.onclick=()=>{ const k=b.dataset.today; e[k]=todayStr(); $(`#dlgBody input[data-k=${k}]`).value=e[k]; renderWarns(); });
+  $$('#dlgBody [data-clear]').forEach(b=>b.onclick=()=>{ const k=b.dataset.clear; e[k]=''; $(`#dlgBody input[data-k=${k}]`).value=''; renderWarns(); });
+  $('#memo').oninput = ev => e.memo = ev.target.value;
+  $('#btnCancel').onclick = () => dlg.close();
+  $('#btnSave').onclick = () => saveEntry(false);
+  if(isNew) $('#btnSaveNext').onclick = () => saveEntry(true);
+  if(!isNew) $('#btnCx').onclick = () => {
+    const real = state.entries[cur].find(x=>x.id===entry.id); if(!real) return;
+    real.memo = e.memo; ['recv','send','plan','done'].forEach(k=>real[k]=e[k]);
+    dlg.close(); setCancel(real, !real.cancel);
+  };
+  if(!isNew) $('#btnDel').onclick = () => {
+    const p = patientOf(entry);
+    if(!confirm(`${p.name||e.pid} さんの登録を削除しますか？`)) return;
+    const list = state.entries[cur], idx = list.findIndex(x=>x.id===entry.id), removed = list[idx];
+    list.splice(idx,1); persist(); renderAll(); dlg.close();
+    toast('削除しました', '元に戻す', ()=>{ list.splice(idx,0,removed); persist(); renderAll(); });
+  };
+}
+function renderPat(){
+  const {e} = ed, area = $('#patArea');
+  if(e.pid && !ed.manual){
+    const p = patientOf(e), age = ageAt(p.birth, baseDate());
+    const reg = inMaster(e) ? '' : inFamily(e) ? '<div class="autonote">患者家族マスタの患者です</div>' : '<div class="autonote">※患者マスタ・患者家族マスタのどちらにも登録がない患者です（記録に残っている情報を使用）</div>';
+    area.innerHTML = `<div class="patcard">
+      <button class="small chg" id="btnChg">患者を変更</button>
+      ${!inMaster(e) && !ed.isNew ? '<button class="small chg chg2" id="btnEditPat" title="この患者の氏名・住所・ID・続柄などを編集します">患者情報を編集</button>' : ''}
+      <div class="f"><small>ID</small><span>${esc(e.pid)}</span></div>
+      <div class="f"><small>氏名</small><span>${esc(p.name||'')}</span></div>
+      <div class="f"><small>ふりがな</small><span>${esc(p.kana||'')}</span></div>
+      <div class="f"><small>生年月日</small><span>${fmtD(p.birth)||'（未登録）'}</span></div>
+      <div class="f"><small>現在の年齢</small><span>${age ?? ''}${age!=null?'歳':''}</span></div>
+      <div class="f"><small id="ageVacL">接種日の年齢</small><span id="ageVac"></span></div>
+      <div class="f"><small>施設名</small><span>${esc(p.gh||'－')}</span></div>
+      <div class="f wide"><small>住所</small><span>${esc(p.addr||'')}</span></div>
+      ${p.rel?`<div class="f wide"><small>続柄</small><span>${esc(relText(p))}</span></div>`:''}
+    </div><div class="autonote">赤字は患者マスタから自動反映されます</div>${reg}`;
+    $('#btnChg').onclick = () => { e.pid=''; e.snap=null; renderPat(); renderSel(); renderWarns(); };
+    if($('#btnEditPat')) $('#btnEditPat').onclick = () => {
+      // 入力中の内容を先に保存してから、患者情報の編集に進む（終わったら、この登録の画面に戻る）
+      const list = state.entries[cur], i = list.findIndex(x=>x.id===e.id), vid = cur, eid = e.id;
+      if(i >= 0){ list[i] = e; persist(); }
+      openPatientEdit(e.pid, () => { const ne = state.entries[vid].find(x=>x.id===eid); if(ne) openEntry(ne); else dlg.close(); });
+    };
+    return;
+  }
+  if(ed.manual){
+    area.innerHTML = `<div class="manual">
+      <div class="mt">患者家族マスタに登録（手入力）</div>
+      <div style="grid-column:1/-1;padding:10px;background:#fff;border-radius:6px;border:1px solid var(--line)">
+        <label>ご家族の場合：患者マスタの患者名から住所を探す</label>
+        <input type="search" id="mFind" placeholder="患者さんの氏名・ふりがな・IDで検索" autocomplete="off">
+        <div class="results" id="mFindRes" style="background:#fff"></div>
+        <div id="mFound" class="hint" style="margin-top:6px"></div>
+      </div>
+      <div><label>続柄（ご家族の場合）</label>
+        <select id="mRel" style="width:100%;font-size:17px;padding:10px 12px"><option value="">（選択しない）</option>${REL_LIST.map(r=>`<option>${esc(r)}</option>`).join('')}</select>
+        <input type="text" id="mRelOther" placeholder="続柄を入力（例：甥・姪、知人）" style="display:none;margin-top:6px"></div>
+      <div><label>ID<span class="hint" style="margin-left:6px;font-weight:400">空欄なら自動で付けます</span></label><input type="text" id="mId"></div>
+      <div><label>氏名</label><input type="text" id="mName"></div>
+      <div><label>ふりがな</label><input type="text" id="mKana"></div>
+      <div><label>生年月日</label><input type="date" id="mBirth"></div>
+      <div><label>施設名</label><input type="text" id="mGh"></div>
+      <div style="grid-column:1/-1"><label>住所</label><input type="text" id="mAddr"></div>
+      <div style="grid-column:1/-1;display:flex;gap:8px"><button class="primary" id="mOk">この患者で登録</button><button id="mBack">検索に戻る</button></div>
+    </div>`;
+    enhanceDates(area);
+    let relTo = null;
+    $('#mBack').onclick = () => { ed.manual=false; renderPat(); };
+    $('#mRel').onchange = ev => { $('#mRelOther').style.display = ev.target.value.startsWith('その他') ? '' : 'none'; };
+    const fi = $('#mFind'), fr = $('#mFindRes'); let fh = [];
+    fi.oninput = () => {
+      const terms = norm(fi.value) ? fi.value.split(/[\s　]+/).map(norm).filter(Boolean) : [];
+      fh = terms.length ? searchIdx.filter(x=>!x.p.fam && terms.every(t=>x.s.includes(t))).slice(0,30) : [];
+      fr.innerHTML = terms.length ? (fh.length ? fh.map((x,i)=>`<div class="res" data-i="${i}" style="grid-template-columns:70px 1fr 2fr"><span class="id">${esc(x.p.id)}</span><span><span class="nm">${esc(x.p.name)}</span><span class="kana">${esc(x.p.kana)}</span></span><span class="gh">${esc(x.p.addr||'（住所なし）')}</span></div>`).join('') : '<div class="res" style="cursor:default;grid-template-columns:1fr"><span class="hint">該当する患者がいません</span></div>') : '';
+    };
+    fr.onclick = ev => {
+      const r = ev.target.closest('.res[data-i]'); if(!r) return; const p = fh[+r.dataset.i].p;
+      $('#mAddr').value = p.addr || ''; relTo = {id:p.id, name:p.name};
+      $('#mFound').innerHTML = `✔ 関連する患者：<b>${esc(p.name)}</b> さん（ID ${esc(p.id)}）。住所を反映しました。${$('#mRel').value?'':'続柄を選んでください。'} <button type="button" class="small" id="mClearRel">関連する患者を解除</button>`;
+      $('#mClearRel').onclick = () => { relTo = null; $('#mFound').innerHTML = '関連する患者を解除しました。'; };
+      fr.innerHTML = ''; fi.value = '';
+      if(!$('#mRel').value) $('#mRel').focus();
+    };
+    $('#mOk').onclick = () => {
+      let id = $('#mId').value.trim();
+      if(id && masterMap.has(id)){ ed.manual=false; selectPatient(masterMap.get(id)); return; }
+      if(id && familyMap.has(id)){ ed.manual=false; selectPatient(familyMap.get(id)); return; }
+      if(!$('#mName').value.trim() && !$('#mKana').value.trim()){ alert('氏名またはふりがなを入力してください。'); return; }
+      if(!id) id = nextFamilyId();
+      let rel = $('#mRel').value; if(rel.startsWith('その他')) rel = $('#mRelOther').value.trim() || 'その他';
+      const p = {id, name:$('#mName').value.trim(), kana:$('#mKana').value.trim(), birth:$('#mBirth').value, addr:$('#mAddr').value.trim(), gh:$('#mGh').value.trim()};
+      if(rel){ p.rel = rel; if(relTo){ p.relTo = relTo.id; p.relToName = relTo.name; } }
+      upsertFamily(p);   // 患者家族マスタに登録する
+      ed.manual = false;
+      selectPatient(p);
+    };
+    $('#mFind').focus();
+    return;
+  }
+  area.innerHTML = `<div class="searchbox"><input type="search" id="ps" placeholder="ID・氏名・ふりがな・施設名で検索（スペース区切りで絞り込み）" autocomplete="off"></div>
+    <div class="results" id="pres"></div>
+    <div class="hint" style="margin-top:4px">↑↓キーで選択、Enterで決定。患者マスタと患者家族マスタの両方から探します。${state.master.list.length?'':'<b>患者マスタが未読込です。</b>'}</div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px">
+      ${ed.isNew?'<button class="manualbtn" id="btnBulkIn" style="margin-top:0" title="施設の入所者をまとめて登録する画面に切り替えます">施設一括登録</button>':''}
+      <button class="manualbtn" id="btnManual" style="margin-top:0" title="患者マスタにない方（ご家族など）を、患者家族マスタに登録します">患者家族を手入力する</button></div>`;
+  const inp = $('#ps'), res = $('#pres');
+  let hits = [], hl = 0;
+  const draw = () => {
+    const terms = norm(inp.value) ? inp.value.split(/[\s　]+/).map(norm).filter(Boolean) : [];
+    if(!terms.length){ res.innerHTML=''; hits=[]; return; }
+    hits = searchIdx.filter(x=>terms.every(t=>x.s.includes(t)));
+    const q0 = terms[0];
+    hits.sort((a,b)=>(norm(b.p.id)===q0)-(norm(a.p.id)===q0) || a.k.localeCompare(b.k,'ja'));
+    hits = hits.slice(0,50); hl = 0;
+    const base = baseDate(), reg = new Set(state.entries[cur].map(x=>x.pid));
+    res.innerHTML = hits.length ? hits.map((x,i)=>{ const p=x.p, a=ageAt(p.birth,base); return `<div class="res${i===hl?' hl':''}" data-i="${i}">
+      <span class="id">${esc(p.id)}</span><span><span class="nm">${esc(p.name)}</span><span class="kana">${esc(p.kana)}</span></span>
+      <span>${fmtD(p.birth)}${a!=null?`（${a}歳）`:''}</span><span class="gh">${esc(p.gh||'')}${p.fam?` <span class="tag">家族${p.rel?'：'+esc(relText(p)):''}</span>`:''}${reg.has(p.id)?' <span class="tag warn">登録済</span>':''}</span></div>`; }).join('')
+      : '<div class="res" style="cursor:default;grid-template-columns:1fr"><span class="hint">該当する患者がいません</span></div>';
+  };
+  const setHl = i => { hl = Math.max(0, Math.min(hits.length-1, i)); $$('.res', res).forEach((r,j)=>r.classList.toggle('hl', j===hl)); const el=$$('.res',res)[hl]; el && el.scrollIntoView({block:'nearest'}); };
+  inp.oninput = draw;
+  inp.onkeydown = ev => {
+    if(ev.key==='ArrowDown'){ ev.preventDefault(); setHl(hl+1); }
+    else if(ev.key==='ArrowUp'){ ev.preventDefault(); setHl(hl-1); }
+    else if(ev.key==='Enter'){ ev.preventDefault(); if(hits[hl]) selectPatient(hits[hl].p); }
+  };
+  res.onclick = ev => { const r = ev.target.closest('.res[data-i]'); if(r) selectPatient(hits[+r.dataset.i].p); };
+  $('#btnManual').onclick = () => { ed.manual = true; renderPat(); };
+  if(ed.isNew) $('#btnBulkIn').onclick = () => { dlg.close(); openBulk(); };
+  setTimeout(()=>inp.focus(), 30);
+}
+function applyAutoSuggest(v, e, p){
+  const notes = {};
+  if(v.flags.some(g=>g.items.some(([k])=>k==='outside'))){
+    if(p.addr){
+      if(p.addr.includes('仙台市')) delete e.sel.outside;
+      else { e.sel.outside = true; notes.outside = '住所から自動判定'; }
+    }
+  }
+  const age = ageAt(p.birth, baseDate());
+  v.radios.forEach(g=>{ if(g.suggest && !g.items.some(([k])=>e.sel[k])){ const k = g.suggest(age); if(k){ e.sel[k]=true; notes[k]='年齢から推定'; } } });
+  return notes;
+}
+function selectPatient(p){
+  const {e, v} = ed;
+  e.pid = p.id; e.snap = {id:p.id, name:p.name||'', kana:p.kana||'', birth:p.birth||'', addr:p.addr||'', gh:p.gh||''};
+  if(p.rel){ e.snap.rel = p.rel; if(p.relTo) e.snap.relTo = p.relTo; if(p.relToName) e.snap.relToName = p.relToName; }
+  if(ed.isNew) ed.autoNotes = applyAutoSuggest(v, e, p);
+  renderPat(); renderSel(); renderWarns();
+}
+function renderSel(){
+  const {v, e} = ed, p = e.pid ? patientOf(e) : null;
+  const chip = (k, l, radio) => `<label class="chip"><input type="checkbox" data-k="${k}" ${radio?`data-g="${radio}"`:''} ${e.sel[k]?'checked':''}>${esc(l)}${ed.autoNotes[k]?`<span class="why">（${ed.autoNotes[k]}）</span>`:''}</label>`;
+  let h = '';
+  v.radios.forEach((g,gi)=>{ h += `<div class="chips"><span class="gl">${esc(g.g)}</span>${g.items.map(([k,l])=>chip(k,l,'r'+gi)).join('')}</div>`; });
+  if(v.auto) h += `<div class="chips"><span class="gl">自動判定</span><span class="chip autochip" id="autoChip"></span></div>`;
+  v.flags.forEach(g=>{ h += `<div class="chips"><span class="gl">${esc(g.g)}</span>${g.items.map(([k,l])=>chip(k,l)).join('')}</div>`; });
+  $('#selArea').innerHTML = h;
+  updAutoChip();
+  $$('#selArea input[type=checkbox]').forEach(cb=>cb.onchange=()=>{
+    const k = cb.dataset.k;
+    if(cb.checked && cb.dataset.g){ $$(`#selArea input[data-g=${cb.dataset.g}]`).forEach(o=>{ if(o!==cb){ o.checked=false; delete e.sel[o.dataset.k]; } }); }
+    if(cb.checked) e.sel[k]=true; else delete e.sel[k];
+    delete ed.autoNotes[k];
+    renderWarns();
+  });
+}
+// 「65歳以上」などの自動判定の表示。接種日の年齢で判定する（日付の入力に合わせて更新）
+function updAutoChip(){
+  const el = $('#autoChip'); if(!el) return;
+  const {v, e} = ed, p = e.pid ? patientOf(e) : null;
+  if(!p){ el.className = 'chip autochip no'; el.textContent = `${v.auto.label}：患者選択後に判定`; return; }
+  const va = vacAge(e, p, baseDate()), ok = v.auto.test(va.age);
+  el.className = 'chip autochip' + (ok ? '' : ' no');
+  el.innerHTML = `${ok?MARK+' ':''}${esc(v.auto.label)}${ok?'':'：該当なし'}<span class="why">（${BASIS_TXT[va.basis]} ${va.age ?? '－'}歳で判定）</span>`;
+}
+function entryWarnings(v, e, selfId){
+  const w = [];
+  // 「!」で始まるものは赤字のエラー表示
+  if(e.send && e.plan && e.send > e.plan) w.push('!予診票発送日が接種予定日よりあとになっています。日付を確認してください。');
+  if(e.done && e.send && e.done < e.send) w.push('!接種日が予診票発送日より前になっています。日付を確認してください。');
+  if(!e.pid) return w;
+  const p = patientOf(e), va = vacAge(e, p, baseDate()), age = va.age;
+  if(!p.birth) w.push('生年月日が登録されていないため年齢を判定できません。');
+  v.radios.forEach(g=>{ if(!g.items.some(([k])=>e.sel[k])) w.push(`「${g.g}」を選択してください。`); });
+  if(v.needOneOf && v.auto && p.birth && !v.auto.test(age) && !v.needOneOf.some(k=>e.sel[k]))
+    w.push(`${v.auto.short||v.auto.label}に該当しません（${BASIS_TXT[va.basis]} ${age}歳）。「${v.needOneOf.map(k=>LABEL[v.id+':'+k].replace(/（.*/,'')).join('」か「')}」を選択してください。`);
+  const dup = state.entries[v.id].filter(x=>x.pid===e.pid && x.id!==selfId && !x.cancel);
+  if(dup.length && !(v.id==='zoster' && e.sel.fukatsu)){
+    const nos = computeNos(state.entries[v.id]);
+    w.push(`この患者は既に登録されています（受付No ${dup.map(x=>nos.get(x.id)||'なし').join('、')}）。`);
+  }
+  if(e.done && e.plan && e.done < e.plan) w.push('接種日が接種予定日より前になっています。');
+  return w;
+}
+// 患者カードの「接種日の年齢」を、日付の入力に合わせて更新する
+function updAgeVac(){
+  updAutoChip();
+  const sp = $('#ageVac'); if(!sp) return;
+  const {e} = ed, p = patientOf(e), d = e.done || e.plan, a = ageAt(p.birth, d);
+  $('#ageVacL').textContent = e.done ? '接種日の年齢' : (e.plan ? '接種予定日の年齢' : '接種日の年齢');
+  sp.textContent = a != null ? `${a}歳` : (d ? '' : '（日付未入力）');
+}
+function renderWarns(){
+  updAgeVac();
+  $('#warns').innerHTML = entryWarnings(ed.v, ed.e, ed.e.id).map(t=>t[0]==='!' ? `<div class="err">⚠ ${esc(t.slice(1))}</div>` : `<div>⚠ ${esc(t)}</div>`).join('');
+  // 日付欄の赤枠
+  const {e} = ed, bad = {send: e.send && e.plan && e.send > e.plan, plan: e.send && e.plan && e.send > e.plan};
+  $$('#dlgBody input[type=date]').forEach(i=>i.classList.toggle('bad', !!bad[i.dataset.k]));
+}
+function saveEntry(next){
+  const {e, isNew} = ed;
+  if(!e.pid){ alert('患者を選択してください。'); return; }
+  const m = masterMap.get(e.pid); if(m) e.snap = {...m};
+  else if(familyMap.has(e.pid)) e.snap = {...familyMap.get(e.pid)};   // 患者家族マスタの患者は、家族マスタの内容を控えにする
+  const list = state.entries[cur];
+  if(isNew) list.push(e); else list[list.findIndex(x=>x.id===e.id)] = e;
+  persist(); renderAll();
+  const no = computeNos(list).get(e.id);
+  toast(`${patientOf(e).name||e.pid} さんを${isNew?'登録':'更新'}しました${no?`（受付No ${no}）`:''}`);
+  if(next) openEntry(null, e); else dlg.close();
+}
+
+/* ---------- 施設一括登録 ---------- */
+function openBulk(){
+  const v = VAC[cur];
+  if(!state.master.list.length){ alert('先に患者マスタを読み込んでください。'); return; }
+  const cnt = new Map(); state.master.list.forEach(p=>{ if(p.gh) cnt.set(p.gh, (cnt.get(p.gh)||0)+1); });
+  const ghs = [...cnt.keys()].sort((a,b)=>a.localeCompare(b,'ja'));
+  if(!ghs.length){ alert('患者マスタに施設名（グループホーム）が登録されていません。'); return; }
+  const bk = {recv:todayStr(), send:'', plan:'', done:'', sel:{}};
+  const dates = DATE_FIELDS.map(([k,l])=>`<div class="df"><label>${l}</label><div class="row"><input type="date" data-k="${k}" value="${bk[k]}"></div></div>`).join('');
+  const rg = v.radios[0] || null, choice = {};   // choice[患者ID] = 選んだワクチン（個別に設定できる）
+  const radios = rg ? `<div class="chips"><span class="gl">${esc(rg.g)}<br>（全員に適用）</span>${rg.items.map(([k,l])=>`<label class="chip"><input type="checkbox" data-k="${k}" data-g="r0">${esc(l)}</label>`).join('')}</div>
+    <div class="hint">上のボタンを押すと、一覧の全員に同じ${esc(rg.g)}が入ります。そのあと、一覧で一人ずつ変更できます。</div>` : '';
+  openDlg(`${v.label}　施設一括登録`, `
+    <div class="sec"><h3>① 施設</h3><select id="bGh" style="min-width:280px">${ghs.map(g=>`<option value="${esc(g)}">${esc(g)}（${cnt.get(g)}名）</option>`).join('')}</select></div>
+    <div class="sec"><h3>② 対象者</h3><div class="hint" style="margin-bottom:4px"><button class="linkbtn" id="bAll">全員選択</button>　<button class="linkbtn" id="bNone">選択解除</button>　登録済の方は初期状態で外しています</div><div class="bulklist" id="bList"></div></div>
+    <div class="sec"><h3>③ 日付と${rg?esc(rg.g):'内容'}</h3><div class="dates">${dates}</div>${radios?`<div style="margin-top:10px">${radios}</div>`:''}
+      <div class="hint">「仙台市以外」は住所から、${v.auto?esc(v.auto.short||v.auto.label)+'は年齢から':''}自動で判定します。個別の区分・確認事項は登録後に一覧から編集してください。</div></div>`,
+    `<span class="grow"></span><button id="bCancel">キャンセル</button><button class="primary" id="bOk">登録</button>`);
+  const base = baseDate();
+  const drawList = () => {
+    const g = $('#bGh').value, reg = new Set(state.entries[cur].map(x=>x.pid));
+    const ps = state.master.list.filter(p=>p.gh===g).sort((a,b)=>norm(a.kana).localeCompare(norm(b.kana),'ja'));
+    const col = rg ? '24px 80px 1fr 100px 60px 190px' : '24px 80px 1fr 110px 60px';
+    $('#bList').innerHTML = ps.map(p=>{ const a=ageAt(p.birth,base), r=reg.has(p.id);
+      return `<label class="${r?'dis':''}" style="grid-template-columns:${col}"><input type="checkbox" value="${esc(p.id)}" ${r?'':'checked'}><span>${esc(p.id)}</span><span><span class="nm">${esc(p.name)}</span><span class="kana">${esc(p.kana)}</span></span><span>${fmtD(p.birth)}</span><span>${a??''}${a!=null?'歳':''}${r?' <span class="tag warn">登録済</span>':''}</span>${rg?`<select class="bv" data-id="${esc(p.id)}"><option value="">（${esc(rg.g)}を選択）</option>${rg.items.map(([k,l])=>`<option value="${k}" ${choice[p.id]===k?'selected':''}>${esc(l)}</option>`).join('')}</select>`:''}</label>`; }).join('');
+    updBtn();
+  };
+  const updBtn = () => { const n = $$('#bList input:checked').length; $('#bOk').textContent = `${n}名を登録`; $('#bOk').disabled = !n; };
+  $('#bGh').onchange = drawList;
+  $('#bList').onchange = ev => { if(ev.target.classList.contains('bv')) choice[ev.target.dataset.id] = ev.target.value; updBtn(); };
+  $('#bAll').onclick = () => { $$('#bList input').forEach(c=>c.checked=true); updBtn(); };
+  $('#bNone').onclick = () => { $$('#bList input').forEach(c=>c.checked=false); updBtn(); };
+  $$('#dlgBody input[type=date]').forEach(inp=>inp.onchange=()=>bk[inp.dataset.k]=inp.value);
+  // 全員に適用するボタン（一覧の全員に同じワクチンを入れる。あとから一人ずつ変更できる）
+  $$('#dlgBody .chips input[data-g]').forEach(cb=>cb.onchange=()=>{
+    if(cb.checked) $$('#dlgBody .chips input[data-g]').forEach(o=>{ if(o!==cb) o.checked=false; });
+    const val = cb.checked ? cb.dataset.k : '';
+    $$('#bList select.bv').forEach(s=>{ s.value = val; choice[s.dataset.id] = val; });
+    state.master.list.filter(p=>p.gh===$('#bGh').value).forEach(p=>choice[p.id] = val);
+  });
+  $('#bCancel').onclick = () => dlg.close();
+  $('#bOk').onclick = () => {
+    const ids = $$('#bList input:checked').map(c=>c.value);
+    if(rg && ids.some(id=>!choice[id]) && !confirm(`${rg.g}が未選択の方がいます。このまま登録しますか？\n（登録後に、一覧から変更できます）`)) return;
+    const list = state.entries[cur]; let t = Date.now();
+    ids.forEach(id=>{
+      const p = masterMap.get(id), e = newEntry();
+      Object.assign(e, {pid:id, recv:bk.recv, send:bk.send, plan:bk.plan, done:bk.done, sel:choice[id] ? {[choice[id]]:true} : {}, snap:{...p}, created:t++});
+      applyAutoSuggest(v, e, p);
+      list.push(e);
+    });
+    persist(); renderAll(); dlg.close();
+    toast(`${$('#bGh').value} の ${ids.length}名を登録しました`);
+  };
+  drawList();
+}
+
+/* ================= ZIP / XLSX 読み込み ================= */
+async function unzip(buf){
+  const dv = new DataView(buf), u8 = new Uint8Array(buf), td = new TextDecoder();
+  let eocd = -1;
+  for(let i = buf.byteLength - 22; i >= Math.max(0, buf.byteLength - 65557); i--){ if(dv.getUint32(i, true) === 0x06054b50){ eocd = i; break; } }
+  if(eocd < 0) throw new Error('Excelファイル（.xlsx / .xlsm）ではありません。古い .xls 形式の場合は、Excelで「.xlsx」形式で保存し直してください。');
+  const cnt = dv.getUint16(eocd + 10, true); let p = dv.getUint32(eocd + 16, true);
+  const files = {};
+  for(let k = 0; k < cnt; k++){
+    if(dv.getUint32(p, true) !== 0x02014b50) break;
+    const method = dv.getUint16(p+10,true), csize = dv.getUint32(p+20,true), nlen = dv.getUint16(p+28,true), elen = dv.getUint16(p+30,true), clen = dv.getUint16(p+32,true), off = dv.getUint32(p+42,true);
+    const name = td.decode(u8.subarray(p+46, p+46+nlen));
+    files[name.toLowerCase()] = {method, csize, off};
+    p += 46 + nlen + elen + clen;
+  }
+  return {
+    async text(name){
+      const f = files[name.toLowerCase()]; if(!f) return null;
+      const start = f.off + 30 + dv.getUint16(f.off+26,true) + dv.getUint16(f.off+28,true);
+      const data = u8.subarray(start, start + f.csize);
+      let out;
+      if(f.method === 0) out = data;
+      else if(f.method === 8){ out = new Uint8Array(await new Response(new Blob([data]).stream().pipeThrough(new DecompressionStream('deflate-raw'))).arrayBuffer()); }
+      else throw new Error('未対応の圧縮形式です');
+      return td.decode(out);
+    }
+  };
+}
+const xml = t => new DOMParser().parseFromString(t, 'application/xml');
+const tags = (el, n) => Array.from(el.getElementsByTagNameNS('*', n));
+const textOf = el => tags(el, 't').filter(t=>t.parentNode.localName !== 'rPh').map(t=>t.textContent).join('');
+function colIdx(ref){ let n = 0; for(const ch of ref){ const c = ch.charCodeAt(0); if(c < 65 || c > 90) break; n = n*26 + (c-64); } return n - 1; }
+async function readXlsx(buf){
+  const z = await unzip(buf);
+  const sst = await z.text('xl/sharedStrings.xml');
+  const ss = sst ? tags(xml(sst), 'si').map(textOf) : [];
+  const wbT = await z.text('xl/workbook.xml'); if(!wbT) throw new Error('Excelファイルの構造を読み取れません');
+  const relT = await z.text('xl/_rels/workbook.xml.rels');
+  const rel = {}; if(relT) tags(xml(relT), 'Relationship').forEach(r=>rel[r.getAttribute('Id')] = r.getAttribute('Target'));
+  const sheets = [];
+  for(const s of tags(xml(wbT), 'sheet')){
+    const rid = s.getAttributeNS('http://schemas.openxmlformats.org/officeDocument/2006/relationships','id') || s.getAttribute('r:id');
+    let tg = rel[rid]; if(!tg) continue;
+    tg = tg.startsWith('/') ? tg.slice(1) : 'xl/' + tg.replace(/^\.\//,'');
+    const x = await z.text(tg); if(!x) continue;
+    const rows = [];
+    for(const row of tags(xml(x), 'row')){
+      const ri = (+row.getAttribute('r') || rows.length + 1) - 1, arr = [];
+      let ci = 0;
+      for(const c of row.children){
+        if(c.localName !== 'c') continue;
+        const r = c.getAttribute('r'); if(r) ci = colIdx(r);
+        const t = c.getAttribute('t'), vEl = tags(c, 'v')[0], vt = vEl ? vEl.textContent : null;
+        let val = null;
+        if(t === 's') val = vt != null ? ss[+vt] : null;
+        else if(t === 'inlineStr'){ const is = tags(c, 'is')[0]; val = is ? textOf(is) : ''; }
+        else if(t === 'str' || t === 'e') val = vt ?? '';
+        else if(t === 'b') val = vt === '1';
+        else val = vt == null || vt === '' ? null : Number(vt);
+        arr[ci] = val; ci++;
+      }
+      rows[ri] = arr;
+    }
+    for(let i = 0; i < rows.length; i++) if(!rows[i]) rows[i] = [];
+    sheets.push({name: s.getAttribute('name'), rows});
+  }
+  return sheets;
+}
+function parseCSV(text){
+  const rows = []; let row = [], f = '', q = false;
+  for(let i = 0; i < text.length; i++){
+    const ch = text[i];
+    if(q){ if(ch === '"'){ if(text[i+1] === '"'){ f += '"'; i++; } else q = false; } else f += ch; }
+    else if(ch === '"') q = true;
+    else if(ch === ','){ row.push(f); f = ''; }
+    else if(ch === '\n' || ch === '\r'){ if(ch === '\r' && text[i+1] === '\n') i++; row.push(f); rows.push(row); row = []; f = ''; }
+    else f += ch;
+  }
+  if(f !== '' || row.length){ row.push(f); rows.push(row); }
+  return rows;
+}
+async function readAnyTable(file){
+  const buf = await file.arrayBuffer();
+  if(/\.csv$/i.test(file.name)){
+    let text;
+    try{ text = new TextDecoder('utf-8', {fatal:true}).decode(buf); }catch(e){ text = new TextDecoder('shift_jis').decode(buf); }
+    return [{name:'CSV', rows:parseCSV(text.replace(/^﻿/,''))}];
+  }
+  return readXlsx(buf);
+}
+
+/* ---------- 患者マスタ読込 ---------- */
+const MFIELDS = [['id','ID（必須）'],['name','氏名'],['kana','ふりがな'],['birth','生年月日'],['jaddr','住民票住所（G列・あればこちらを優先）'],['addr','住所（住民票住所が空のとき使用）'],['gh','施設名（グループホーム）']];
+const MALIAS = {
+  id:['id','患者id','患者番号','カルテ番号','カルテno','診察券番号'],
+  kana:['ふりがな','フリガナ','カナ氏名','カナ','よみがな','よみ','かな'],
+  birth:['生年月日','誕生日'],
+  gh:['グループホーム','施設名','施設','入所施設','gh'],
+  addr:['住所','現住所'],
+  jaddr:['住民票住所','住民票','住民票の住所','住民登録住所'],
+  name:['氏名','患者氏名','患者名','名前','漢字氏名'],
+};
+const MDEF = {id:0, name:1, kana:2, birth:3, addr:4, gh:5};
+function detectHeader(rows){
+  let best = -1, bestScore = 0;
+  for(let r = 0; r < Math.min(rows.length, 15); r++){
+    const hs = (rows[r]||[]).map(normH);
+    let sc = 0;
+    for(const al of Object.values(MALIAS)) if(hs.some(h=>h && al.some(a=>h===normH(a)))) sc += 2; else if(hs.some(h=>h && al.some(a=>h.includes(normH(a))))) sc += 1;
+    if(sc > bestScore){ bestScore = sc; best = r; }
+  }
+  return best;
+}
+function detectMap(rows, hr){
+  const hs = hr >= 0 ? (rows[hr]||[]).map(normH) : [];
+  const map = {}, used = new Set();
+  for(const f of ['id','kana','birth','gh','jaddr','addr','name']){
+    const al = MALIAS[f].map(normH);
+    let i = hs.findIndex((h,j)=>h && !used.has(j) && al.includes(h));
+    if(i < 0) i = hs.findIndex((h,j)=>h && !used.has(j) && al.some(a=>h.includes(a)));
+    if(i >= 0){ map[f] = i; used.add(i); }
+  }
+  for(const f of Object.keys(MDEF)){ const i = MDEF[f]; if(map[f] == null && !used.has(i) && !hs[i]){ map[f] = i; used.add(i); } }
+  // 住民票住所：見出し名で見つからなければG列（年齢・検索などの列でなければ）を既定にする
+  if(map.jaddr == null && !used.has(6) && !/年齢|検索|age/i.test(hs[6]||'')){ map.jaddr = 6; used.add(6); }
+  return map;
+}
+function buildPatients(rows, hr, map){
+  const out = new Map(); let bad = 0, noBirth = 0;
+  for(let r = hr + 1; r < rows.length; r++){
+    const row = rows[r] || [], g = f => map[f] == null || map[f] < 0 ? null : row[map[f]];
+    const id = toIdStr(g('id'));
+    if(!id){ continue; }
+    const p = {id, name:strVal(g('name')), kana:strVal(g('kana')), birth:parseDate(g('birth')), addr:strVal(g('jaddr')) || strVal(g('addr')), gh:strVal(g('gh'))};
+    if(!p.name && !p.kana){ bad++; continue; }
+    if(!p.birth) noBirth++;
+    out.set(id, p);
+  }
+  return {list:[...out.values()], bad, noBirth};
+}
+async function onMasterFile(file){
+  let sheets;
+  try{ sheets = await readAnyTable(file); }catch(e){ alert('読み込めませんでした：' + e.message); return; }
+  if(!sheets.length){ alert('シートが見つかりません'); return; }
+  const tmp = {sheets, si: Math.max(0, sheets.findIndex(s=>s.name.includes('患者'))), hr:0, map:{}};
+  const reDetect = () => { const rows = tmp.sheets[tmp.si].rows; tmp.hr = detectHeader(rows); tmp.map = detectMap(rows, tmp.hr); };
+  reDetect();
+  const draw = () => {
+    const rows = tmp.sheets[tmp.si].rows, hdr = tmp.hr >= 0 ? rows[tmp.hr] || [] : [];
+    const ncol = Math.max(0, ...rows.slice(0, 50).map(r=>r.length));
+    const opts = sel => `<option value="-1">（使わない）</option>` + Array.from({length:ncol}, (_,i)=>`<option value="${i}" ${sel===i?'selected':''}>${colLetter(i)}列：${esc(strVal(hdr[i])||'（見出しなし）')}</option>`).join('');
+    const res = buildPatients(rows, tmp.hr, tmp.map);
+    const prev = res.list.slice(0, 5);
+    const ex = state.master.list.length;
+    $('#dlgBody').innerHTML = `
+      <div class="sec"><h3>読み込むファイル</h3><div><b>${esc(file.name)}</b></div>
+        <div class="mapgrid" style="margin-top:8px">
+          <div><label>シート</label><select id="mSheet">${sheets.map((s,i)=>`<option value="${i}" ${i===tmp.si?'selected':''}>${esc(s.name)}</option>`).join('')}</select></div>
+          <div><label>見出しの行</label><select id="mHr">${Array.from({length:Math.min(rows.length,15)},(_,i)=>`<option value="${i}" ${i===tmp.hr?'selected':''}>${i+1}行目</option>`).join('')}</select></div>
+        </div></div>
+      <div class="sec"><h3>列の割り当て（自動判定済み。違っていれば変更してください）</h3>
+        <div class="mapgrid">${MFIELDS.map(([f,l])=>`<div><label>${l}</label><select data-f="${f}">${opts(tmp.map[f] ?? -1)}</select></div>`).join('')}</div></div>
+      <div class="sec"><h3>確認（先頭5名）</h3>
+        <div style="overflow:auto"><table class="maptbl"><tr><th>ID</th><th>氏名</th><th>ふりがな</th><th>生年月日</th><th>住所</th><th>施設名</th></tr>
+        ${prev.map(p=>`<tr><td>${esc(p.id)}</td><td>${esc(p.name)}</td><td>${esc(p.kana)}</td><td>${fmtD(p.birth)||'<span class="tag warn">不明</span>'}</td><td>${esc(p.addr)}</td><td>${esc(p.gh)}</td></tr>`).join('') || '<tr><td colspan="6">データがありません</td></tr>'}</table></div>
+        <p>読み込み件数：<b>${res.list.length.toLocaleString()}名</b>${res.noBirth?`　<span class="tag warn">生年月日が読めない ${res.noBirth}名</span>`:''}${res.bad?`　（氏名のない行 ${res.bad}件は除外）`:''}</p>
+        ${ex?`<p class="hint">現在の患者マスタ（${ex.toLocaleString()}名）は、この内容に置き換わります。登録済みの接種データはそのまま残り、患者情報は新しいマスタの内容で表示されます。</p>`:''}
+      </div>`;
+    $('#mSheet').onchange = ev => { tmp.si = +ev.target.value; reDetect(); draw(); };
+    $('#mHr').onchange = ev => { tmp.hr = +ev.target.value; tmp.map = detectMap(tmp.sheets[tmp.si].rows, tmp.hr); draw(); };
+    $$('#dlgBody select[data-f]').forEach(s=>s.onchange=()=>{ tmp.map[s.dataset.f] = +s.value; draw(); });
+    $('#mOk').disabled = !res.list.length;
+    tmp.res = res;
+  };
+  openDlg('患者マスタの読み込み', '', `<span class="grow"></span><button id="mCancel">キャンセル</button><button class="primary" id="mOk">この内容で読み込む</button>`, 'min(980px,96vw)');
+  $('#mCancel').onclick = () => dlg.close();
+  $('#mOk').onclick = () => {
+    const list = tmp.res.list;
+    state.master = {edited:false, list, fileName:file.name, loadedAt:new Date().toLocaleString('ja-JP',{year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'})};
+    rebuildMaster();
+    // 登録済データの患者情報を最新化
+    for(const v of VACCINES) for(const e of state.entries[v.id]){ const p = masterMap.get(e.pid); if(p) e.snap = {...p}; }
+    persist(); renderAll(); dlg.close();
+    toast(`患者マスタを読み込みました（${list.length.toLocaleString()}名）`);
+  };
+  draw();
+}
+
+/* ---------- 管理票取込 ---------- */
+async function onImportFile(file){
+  let sheets;
+  try{ sheets = await readXlsx(await file.arrayBuffer()); }catch(e){ alert('読み込めませんでした：' + e.message); return; }
+  const found = [];
+  // IDのない行（ご家族など）は、氏名があれば患者家族マスタの患者として取り込む（IDは M0001 のように自動で付ける）。
+  // 同じ氏名・生年月日は同じ患者にまとめ、すでに家族マスタにいる方はそのIDを使う
+  const fam = new Map(), usedIds = new Set();
+  state.family.list.forEach(p=>fam.set(`${normH(p.name)}|${p.birth||''}`, p));
+  const newFamId = () => { const id = nextFamilyId(usedIds); usedIds.add(id); return id; };
+  for(const v of VACCINES){
+    const sh = sheets.find(s=>s.name.includes(v.match)); if(!sh) continue;
+    const rows = sh.rows;
+    let hr = rows.slice(0,5).findIndex(r=>(r||[]).some(c=>normH(c)==='id')); if(hr < 0) continue;
+    const idx = {}; (rows[hr]||[]).forEach((h,i)=>{ const n = normH(h); const col = v.cols.find(c=>normH(c.h)===n); if(n && col && idx[col.src]==null) idx[col.src] = i; });
+    if(idx.pid == null) continue;
+    const entries = []; let t = Date.now(), noId = 0, skipped = 0;
+    for(let r = hr+1; r < rows.length; r++){
+      const row = rows[r] || [], g = s => idx[s]==null ? null : row[idx[s]];
+      let pid = toIdStr(g('pid')), famP = null;
+      if(!pid){
+        const sv0 = s => { const x = strVal(g(s)); return x.startsWith('※') ? '' : x; };
+        const hasData = ['recv','send','plan','done'].some(k=>parseDate(g(k))) || v.cols.some(c=>c.src.startsWith('sel:') && isMarked(g(c.src)));
+        const nm = sv0('#name'), kn = sv0('#kana');
+        if(!nm && !kn){ if(hasData) skipped++; continue; }
+        const birth = parseDate(g('#birth')), key = `${normH(nm)}|${birth}`;
+        famP = fam.get(key) || [...fam.values()].find(p=>normH(p.name) === normH(nm) && (!birth || !p.birth || birth === p.birth));
+        if(!famP){ famP = {id:newFamId(), name:nm, kana:kn, birth, addr:sv0('#addr'), gh:sv0('#gh'), imported:true}; fam.set(key, famP); }
+        pid = famP.id; noId++;
+      }
+      const e = newEntry(); e.pid = pid; e.created = t++;
+      ['recv','send','plan','done'].forEach(k=>e[k]=parseDate(g(k)));
+      e.memo = strVal(g('memo')).replace(/^※.*/,'');
+      if(e.memo.startsWith('【キャンセル】')){ e.cancel = true; e.memo = e.memo.slice(7); }
+      v.cols.forEach(c=>{ if(c.src.startsWith('sel:') && isMarked(g(c.src))) e.sel[c.src.slice(4)] = true; });
+      const sv = s => { const x = strVal(g(s)); return x.startsWith('※') ? '' : x; };
+      e.snap = masterMap.get(pid) ? {...masterMap.get(pid)} : famP ? {id:famP.id, name:famP.name, kana:famP.kana, birth:famP.birth, addr:famP.addr, gh:famP.gh} : {id:pid, name:sv('#name'), kana:sv('#kana'), birth:parseDate(g('#birth')), addr:sv('#addr'), gh:sv('#gh')};
+      entries.push(e);
+    }
+    found.push({v, sheet:sh.name, entries, noId, skipped});
+  }
+  if(!found.length){ alert('取り込めるシートが見つかりませんでした。\n（シート名に「インフル」「コロナ」「帯状」「肺炎」を含み、1～5行目に「ID」の見出しがあるシートが対象です）'); return; }
+  // IDはあるが、患者マスタにも患者家族マスタにもない方（IDのない行から作った方は、取込のとき必ず家族マスタに入るので除く）
+  const autoIds = new Set([...fam.values()].filter(x=>x.imported).map(x=>x.id));
+  const nmSet = new Set(); found.forEach(f=>f.entries.forEach(e=>{ if(!masterMap.has(e.pid) && !familyMap.has(e.pid) && !autoIds.has(e.pid) && e.snap && (e.snap.name || e.snap.kana)) nmSet.add(e.pid); }));
+  const noMasterN = nmSet.size;
+  openDlg('管理票の取り込み', `
+    <p><b>${esc(file.name)}</b> から次のデータが見つかりました。</p>
+    <table class="maptbl"><tr><th>取込</th><th>ワクチン</th><th>シート名</th><th>件数</th><th>うちIDなし<br>（ご家族等）</th><th>現在の登録</th></tr>
+    ${found.map((f,i)=>`<tr><td><input type="checkbox" data-i="${i}" ${f.entries.length?'checked':''}></td><td>${esc(f.v.label)}</td><td>${esc(f.sheet)}</td><td>${f.entries.length}件</td><td>${f.noId}件${f.skipped?`<br><span class="tag warn">氏名なしで除外 ${f.skipped}件</span>`:''}</td><td>${state.entries[f.v.id].length}件</td></tr>`).join('')}</table>
+    <div class="sec" style="margin-top:14px"><h3>取り込み方法</h3>
+      <label><input type="radio" name="imode" value="replace" checked> 置き換える（現在の登録を消して、ファイルの内容にする）</label><br>
+      <label><input type="radio" name="imode" value="append"> 追加する（現在の登録の後ろに追加する）</label><br>
+      <label><input type="radio" name="imode" value="dates"> 予診票発送日・接種予定日だけを更新する（登録の追加・削除、区分・備考などは変えない）</label></div>
+    <div id="iDiff" style="display:none;margin:8px 0;padding:10px;border:1px solid var(--accent);border-radius:6px;background:var(--accent-weak)">
+      <label style="display:block;margin-bottom:6px"><input type="checkbox" id="iClr"> ファイルの日付が空欄のとき、現在の日付を消す（チェックしない場合、空欄は変更しません）</label>
+      <div id="iDiffBody"></div></div>
+    ${noMasterN?`<label style="display:block;margin:6px 0;padding:8px 10px;border:1px solid var(--line);border-radius:6px"><input type="checkbox" id="iAddFamily"> <b>患者マスタにないIDの方（${noMasterN}名）を、患者家族マスタにも追加する</b><br><span class="hint">チェックしない場合も、記録は取り込まれます（氏名・住所は記録に残ります）。追加すると、新規登録の検索で選べ、「患者家族マスタ」の画面で編集できます。氏名が入っていない方は追加できません。</span></label>`:''}
+    <p class="hint">日付・◯印・備考を取り込みます。氏名などの患者情報は患者マスタから反映されます（マスタにないIDはファイルの内容を使用）。<br><b>IDのない行</b>は、氏名が入っていれば、<b>患者家族マスタ</b>の患者として取り込みます（IDは「M0001」のように自動で付き、同じ氏名・生年月日の方は同じ患者になります）。氏名も無い行は取り込めません。</p>`,
+    `<span class="grow"></span><button id="iCancel">キャンセル</button><button class="primary" id="iOk">取り込む</button>`);
+  $('#iCancel').onclick = () => dlg.close();
+  // 日付だけ更新するモード：ファイルの日付と、いまの登録の日付との差分を出す
+  let diffRows = [];
+  const computeDiff = clearEmpty => {
+    const rows = [], missing = []; let same = 0;
+    $$('#dlgBody input[data-i]:checked').map(cb=>found[+cb.dataset.i]).forEach(f=>{
+      const appBy = new Map(); state.entries[f.v.id].forEach(a=>{ if(!appBy.has(a.pid)) appBy.set(a.pid, []); appBy.get(a.pid).push(a); });
+      const used = new Set();
+      f.entries.forEach(fe=>{
+        const all = appBy.get(fe.pid) || [], cands = all.filter(a=>!used.has(a));
+        if(!cands.length){ missing.push({v:f.v, fe}); return; }
+        let a = fe.recv ? cands.find(x=>x.recv===fe.recv) : null, basis;
+        if(a) basis = all.length > 1 ? '受付日で対応' : 'ID一致';
+        else { a = cands[0]; basis = all.length > 1 ? '順番で対応（要確認）' : 'ID一致'; }
+        used.add(a);
+        const nv = {}; ['send','plan'].forEach(k=>{ nv[k] = fe[k] || (clearEmpty ? '' : a[k]); });
+        if(nv.send !== a.send || nv.plan !== a.plan) rows.push({v:f.v, a, fe, nv, basis}); else same++;
+      });
+    });
+    return {rows, missing, same};
+  };
+  const updDiffOk = () => { const k = $$('#iDiffBody input.dfck:checked').length; $('#iOk').textContent = `${k}件の日付を反映する`; $('#iOk').disabled = !k; };
+  const drawDiff = () => {
+    const mode = $('input[name=imode]:checked').value, box = $('#iDiff');
+    if(mode !== 'dates'){ box.style.display = 'none'; $('#iOk').textContent = '取り込む'; $('#iOk').disabled = false; return; }
+    box.style.display = '';
+    const d = computeDiff($('#iClr').checked); diffRows = d.rows;
+    const fm = (o, n) => o === n ? `<span style="color:var(--muted)">${fmtD(o)||'―'}</span>` : `<span style="color:var(--muted)">${fmtD(o)||'（空）'}</span> → <b style="color:var(--danger)">${fmtD(n)||'（空）'}</b>`;
+    $('#iDiffBody').innerHTML = `<p style="margin:4px 0">差分あり <b>${d.rows.length}件</b>／差分なし ${d.same}件／対応する登録がない ${d.missing.length}件</p>
+      ${d.rows.length ? `<div class="bulklist" style="max-height:260px;background:#fff"><table class="maptbl"><tr><th><input type="checkbox" id="dfAll" checked></th><th>ワクチン</th><th>ID</th><th>氏名</th><th>照合</th><th>予診票発送日</th><th>接種予定日</th></tr>
+        ${d.rows.map((r,i)=>`<tr><td><input type="checkbox" class="dfck" data-k="${i}" checked></td><td>${esc(r.v.label)}</td><td>${esc(r.a.pid)}</td><td>${esc(patientOf(r.a).name||'')}</td><td>${esc(r.basis)}</td><td>${fm(r.a.send, r.nv.send)}</td><td>${fm(r.a.plan, r.nv.plan)}</td></tr>`).join('')}</table></div>` : '<p class="hint">反映する差分はありません。</p>'}
+      ${d.missing.length ? `<p class="hint">対応する登録がないため反映しない方：${d.missing.slice(0,15).map(m=>esc(m.v.label+' '+((m.fe.snap&&m.fe.snap.name)||m.fe.pid))).join('、')}${d.missing.length>15?` ほか${d.missing.length-15}件`:''}</p>` : ''}`;
+    const all = $('#dfAll'); if(all) all.onchange = () => { $$('#iDiffBody input.dfck').forEach(c=>c.checked = all.checked); updDiffOk(); };
+    updDiffOk();
+  };
+  $$('input[name=imode]').forEach(r=>r.onchange = drawDiff);
+  $$('#dlgBody input[data-i]').forEach(c=>c.addEventListener('change', drawDiff));
+  $('#iClr').onchange = drawDiff;
+  $('#iDiffBody').onchange = ev => { if(ev.target.classList.contains('dfck')) updDiffOk(); };
+  $('#iOk').onclick = () => {
+    const mode = $('input[name=imode]:checked').value; let n = 0;
+    if(mode === 'dates'){
+      const sel = $$('#iDiffBody input.dfck:checked').map(c=>diffRows[+c.dataset.k]); if(!sel.length) return;
+      const prev = sel.map(r=>[r.a, {send:r.a.send, plan:r.a.plan}]);
+      sel.forEach(r=>{ r.a.send = r.nv.send; r.a.plan = r.nv.plan; });
+      persist(); renderAll(); dlg.close();
+      toast(`${sel.length}件の予診票発送日・接種予定日を反映しました`, '元に戻す', ()=>{ prev.forEach(([a,o])=>Object.assign(a, o)); persist(); renderAll(); });
+      return;
+    }
+    $$('#dlgBody input[data-i]:checked').forEach(cb=>{
+      const f = found[+cb.dataset.i]; state.entries[f.v.id] = mode==='replace' ? f.entries : state.entries[f.v.id].concat(f.entries); n += f.entries.length;
+      // IDのない行から作った方は、必ず患者家族マスタに登録する
+      f.entries.forEach(e=>{ const p = [...fam.values()].find(x=>x.id===e.pid && x.imported); if(!p || familyMap.has(p.id)) return;
+        const {imported, ...rec} = p; upsertFamily(rec); });
+    });
+    // IDはあるが患者マスタにない方：希望があれば、患者家族マスタにも追加する
+    const addF = $('#iAddFamily') && $('#iAddFamily').checked; let addedF = 0;
+    if(addF){
+      const seen = new Set();
+      $$('#dlgBody input[data-i]:checked').forEach(cb=>found[+cb.dataset.i].entries.forEach(e=>{
+        if(masterMap.has(e.pid) || familyMap.has(e.pid) || seen.has(e.pid) || !e.snap || !(e.snap.name || e.snap.kana)) return; seen.add(e.pid);
+        upsertFamily({id:e.pid, name:e.snap.name||'', kana:e.snap.kana||'', birth:e.snap.birth||'', addr:e.snap.addr||'', gh:e.snap.gh||''}); addedF++;
+      }));
+    }
+    rebuildMaster(); persist(); renderAll(); dlg.close(); toast(`${n}件を取り込みました${state.family.list.length?`（患者家族マスタ ${state.family.list.length}名）`:''}${addedF?`　うち${addedF}名を追加`:''}`);
+  };
+}
+
+/* ================= XLSX 書き出し ================= */
+const CRC = (() => { const t = new Uint32Array(256); for(let n = 0; n < 256; n++){ let c = n; for(let k = 0; k < 8; k++) c = c & 1 ? 0xEDB88320 ^ (c >>> 1) : c >>> 1; t[n] = c >>> 0; } return t; })();
+function crc32(u8){ let c = 0xFFFFFFFF; for(let i = 0; i < u8.length; i++) c = CRC[(c ^ u8[i]) & 0xFF] ^ (c >>> 8); return (c ^ 0xFFFFFFFF) >>> 0; }
+function zipStore(files){
+  const te = new TextEncoder(), parts = [], cd = []; let off = 0;
+  const d = new Date(), dt = ((d.getFullYear()-1980)<<9)|((d.getMonth()+1)<<5)|d.getDate(), tm = (d.getHours()<<11)|(d.getMinutes()<<5)|(d.getSeconds()>>1);
+  for(const f of files){
+    const name = te.encode(f.name), data = te.encode(f.data), crc = crc32(data);
+    const lh = new DataView(new ArrayBuffer(30));
+    lh.setUint32(0,0x04034b50,true); lh.setUint16(4,20,true); lh.setUint16(6,0x0800,true); lh.setUint16(8,0,true);
+    lh.setUint16(10,tm,true); lh.setUint16(12,dt,true); lh.setUint32(14,crc,true); lh.setUint32(18,data.length,true); lh.setUint32(22,data.length,true);
+    lh.setUint16(26,name.length,true); lh.setUint16(28,0,true);
+    parts.push(lh.buffer, name, data);
+    const ch = new DataView(new ArrayBuffer(46));
+    ch.setUint32(0,0x02014b50,true); ch.setUint16(4,20,true); ch.setUint16(6,20,true); ch.setUint16(8,0x0800,true); ch.setUint16(10,0,true);
+    ch.setUint16(12,tm,true); ch.setUint16(14,dt,true); ch.setUint32(16,crc,true); ch.setUint32(20,data.length,true); ch.setUint32(24,data.length,true);
+    ch.setUint16(28,name.length,true); ch.setUint32(42,off,true);
+    cd.push(ch.buffer, name);
+    off += 30 + name.length + data.length;
+  }
+  const cdSize = cd.reduce((s,b)=>s + b.byteLength, 0);
+  const eo = new DataView(new ArrayBuffer(22));
+  eo.setUint32(0,0x06054b50,true); eo.setUint16(8,files.length,true); eo.setUint16(10,files.length,true); eo.setUint32(12,cdSize,true); eo.setUint32(16,off,true);
+  return new Blob([...parts, ...cd, eo.buffer], {type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
+}
+const xesc = s => String(s).replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f]/g,'').replace(/[&<>"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+// スタイル: 0標準 1見出し 2日付 3中央 4文字
+const STYLES = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><numFmts count="2"><numFmt numFmtId="164" formatCode="yyyy/mm/dd"/><numFmt numFmtId="165" formatCode="m/d"/></numFmts>
+<fonts count="2"><font><sz val="11"/><name val="游ゴシック"/><family val="3"/><charset val="128"/></font><font><b/><sz val="10"/><name val="游ゴシック"/><family val="3"/><charset val="128"/></font></fonts>
+<fills count="3"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill><fill><patternFill patternType="solid"><fgColor rgb="FFEEF1F4"/><bgColor indexed="64"/></patternFill></fill></fills>
+<borders count="2"><border><left/><right/><top/><bottom/><diagonal/></border><border><left style="thin"><color rgb="FFBFC5CC"/></left><right style="thin"><color rgb="FFBFC5CC"/></right><top style="thin"><color rgb="FFBFC5CC"/></top><bottom style="thin"><color rgb="FFBFC5CC"/></bottom><diagonal/></border></borders>
+<cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs>
+<cellXfs count="6"><xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/>
+<xf numFmtId="0" fontId="1" fillId="2" borderId="1" xfId="0" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment horizontal="center" vertical="center" wrapText="1"/></xf>
+<xf numFmtId="165" fontId="0" fillId="0" borderId="1" xfId="0" applyNumberFormat="1" applyBorder="1" applyAlignment="1"><alignment horizontal="center" shrinkToFit="1"/></xf>
+<xf numFmtId="0" fontId="0" fillId="0" borderId="1" xfId="0" applyBorder="1" applyAlignment="1"><alignment horizontal="center" shrinkToFit="1"/></xf>
+<xf numFmtId="0" fontId="0" fillId="0" borderId="1" xfId="0" applyBorder="1" applyAlignment="1"><alignment vertical="center" shrinkToFit="1"/></xf>
+<xf numFmtId="164" fontId="0" fillId="0" borderId="1" xfId="0" applyNumberFormat="1" applyBorder="1" applyAlignment="1"><alignment horizontal="center" shrinkToFit="1"/></xf></cellXfs>
+<cellStyles count="1"><cellStyle name="標準" xfId="0" builtinId="0"/></cellStyles></styleSheet>`;
+function cellXml(ref, c){
+  if(!c || c.v === '' || c.v == null) return `<c r="${ref}" s="4"/>`;
+  if(c.t === 'n') return `<c r="${ref}" s="3"><v>${c.v}</v></c>`;
+  if(c.t === 'd') return `<c r="${ref}" s="2"><v>${strToSerial(c.v)}</v></c>`;   // 月/日のみ
+  if(c.t === 'b') return `<c r="${ref}" s="5"><v>${strToSerial(c.v)}</v></c>`;   // 生年月日は年も表示
+  return `<c r="${ref}" s="${c.t==='c'?3:4}" t="inlineStr"><is><t xml:space="preserve">${xesc(c.v)}</t></is></c>`;
+}
+// 長くなりやすい文字の列は、少し広めにする（セルの幅に合わせて文字は自動で縮小表示される）
+const WIDE = {'#gh':22, '#name':18, 'memo':22, '#kana':22, '#addr':42, '#birth':13};
+function sheetXml(cols, rows){
+  cols = cols.map(c=>({...c, w: Math.max(c.w||10, WIDE[c.src]||0)}));
+  const head = `<row r="1" ht="54" customHeight="1">${cols.map((c,i)=>`<c r="${colLetter(i)}1" s="1" t="inlineStr"><is><t xml:space="preserve">${xesc(c.h)}</t></is></c>`).join('')}</row>`;
+  const body = rows.map((r,ri)=>`<row r="${ri+2}">${r.map((c,i)=>cellXml(colLetter(i)+(ri+2), c)).join('')}</row>`).join('');
+  return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetPr><pageSetUpPr fitToPage="1"/></sheetPr><sheetViews><sheetView workbookViewId="0"><pane ySplit="1" topLeftCell="A2" activePane="bottomLeft" state="frozen"/></sheetView></sheetViews><sheetFormatPr defaultRowHeight="18.75"/><cols>${cols.map((c,i)=>`<col min="${i+1}" max="${i+1}" width="${c.w||10}"${c.src==='pid'?' hidden="1"':''} customWidth="1"/>`).join('')}</cols><sheetData>${head}${body}</sheetData><pageMargins left="0.5" right="0.5" top="0.6" bottom="0.6" header="0.3" footer="0.3"/><pageSetup paperSize="9" orientation="landscape" fitToWidth="1" fitToHeight="0"/></worksheet>`;
+}
+function idCell(id){ return /^[1-9]\d{0,14}$/.test(id) ? {t:'n', v:id} : {t:'s', v:id}; }
+function exportCell(v, e, no, src, base){
+  const p = patientOf(e), age = ageAt(p.birth, base);
+  switch(src){
+    case 'pid': return idCell(e.pid);
+    case 'recv': case 'send': case 'plan': case 'done': return e[src] ? {t:'d', v:e[src]} : null;
+    case 'memo': return {t:'s', v:(e.cancel?'【キャンセル】':'')+(e.memo||'')};
+    case '#no': return no ? {t:'n', v:no} : null;
+    case '#gh': return {t:'s', v:p.gh||''};
+    case '#name': return {t:'s', v:(p.name || (inMaster(e)?'':'※未登録')) + (e.cancel ? '（キャンセル）' : '')};
+    case '#kana': return {t:'s', v:p.kana||''};
+    case '#addr': return {t:'s', v:p.addr||''};
+    case '#birth': return p.birth ? {t:'b', v:p.birth} : null;
+    case '#age': { const a = vacAge(e, p, base).age; return a != null ? {t:'n', v:a} : null; }   // 接種日の年齢（接種日が未定なら接種予定日→基準日）
+    case '#auto': return v.auto && v.auto.test(vacAge(e, p, base).age) ? {t:'c', v:MARK} : null;   // 接種日の年齢で判定
+    default: return e.sel[src.slice(4)] ? {t:'c', v:MARK} : null;
+  }
+}
+function buildWorkbook(){
+  const base = baseDate();
+  const sheets = VACCINES.map(v=>{
+    const list = state.entries[v.id], nos = computeNos(list);
+    // 備考の列より右（備考・ふりがな・生年月日・住所）は出力しない。IDは列を非表示にして残す（管理票取込で使うため）
+    const mi = v.cols.findIndex(c=>c.src==='memo'), cols = mi >= 0 ? v.cols.slice(0, mi) : v.cols;
+    return {name:(state.settings.fy + v.sheet).replace(/[\[\]:*?\/\\]/g,'').slice(0,31), cols, rows:list.map(e=>cols.map(c=>exportCell(v, e, nos.get(e.id), c.src, base)))};
+  });
+  const files = [
+    {name:'[Content_Types].xml', data:`<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>${sheets.map((s,i)=>`<Override PartName="/xl/worksheets/sheet${i+1}.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>`).join('')}<Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/></Types>`},
+    {name:'_rels/.rels', data:`<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>`},
+    {name:'xl/workbook.xml', data:`<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><bookViews><workbookView/></bookViews><sheets>${sheets.map((s,i)=>`<sheet name="${xesc(s.name)}" sheetId="${i+1}" r:id="rId${i+1}"/>`).join('')}</sheets><definedNames>${sheets.map((s,i)=>`<definedName name="_xlnm.Print_Titles" localSheetId="${i}">'${xesc(s.name)}'!$1:$1</definedName>`).join('')}</definedNames></workbook>`},
+    {name:'xl/_rels/workbook.xml.rels', data:`<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">${sheets.map((s,i)=>`<Relationship Id="rId${i+1}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet${i+1}.xml"/>`).join('')}<Relationship Id="rId${sheets.length+1}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/></Relationships>`},
+    {name:'xl/styles.xml', data:STYLES},
+    ...sheets.map((s,i)=>({name:`xl/worksheets/sheet${i+1}.xml`, data:sheetXml(s.cols, s.rows)})),
+  ];
+  return zipStore(files);
+}
+function download(blob, name){
+  const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name;
+  document.body.appendChild(a); a.click(); a.remove(); setTimeout(()=>URL.revokeObjectURL(a.href), 5000);
+}
+
+/* ================= バックアップ・設定 ================= */
+/* --- バックアップ保存先フォルダ（Chrome / Edge の File System Access API） --- */
+const FS_OK = typeof window.showDirectoryPicker === 'function';
+const BK_PREFIX = 'ワクチン管理_バックアップ_';
+let backupDir = null;
+function idbOpen(){ return new Promise((res,rej)=>{ const r = indexedDB.open('vaccineKanri.fs', 1); r.onupgradeneeded = () => r.result.createObjectStore('h'); r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error); }); }
+async function idbGet(k){ const db = await idbOpen(); return new Promise((res,rej)=>{ const q = db.transaction('h').objectStore('h').get(k); q.onsuccess = () => res(q.result); q.onerror = () => rej(q.error); }); }
+async function idbPut(k, v){ const db = await idbOpen(); return new Promise((res,rej)=>{ const t = db.transaction('h','readwrite'); v === undefined ? t.objectStore('h').delete(k) : t.objectStore('h').put(v, k); t.oncomplete = () => res(); t.onerror = () => rej(t.error); }); }
+const dirReady = (async () => { try{ if(FS_OK) backupDir = (await idbGet('backupDir')) || null; }catch(e){ backupDir = null; } })();
+async function dirPermission(){
+  if(!backupDir) return false;
+  const o = {mode:'readwrite'};
+  try{ return (await backupDir.queryPermission(o)) === 'granted' || (await backupDir.requestPermission(o)) === 'granted'; }catch(e){ return false; }
+}
+async function chooseBackupDir(){
+  try{
+    const h = await window.showDirectoryPicker({id:'vaccineKanriBackup', mode:'readwrite'});
+    backupDir = h; await idbPut('backupDir', h); return true;
+  }catch(e){
+    if(e && e.name !== 'AbortError') alert('このフォルダは選べませんでした。\n「デスクトップ」「ドキュメント」「ダウンロード」そのものは選べないため、その中に専用のフォルダを作って選んでください。\n\n' + e.message);
+    return false;
+  }
+}
+async function writeFileTo(dir, name, data){
+  const fh = await dir.getFileHandle(name, {create:true}), w = await fh.createWritable();
+  await w.write(data); await w.close();
+}
+// 保存先を返す: 'folder'（固定フォルダ）/ 'download'（ダウンロード）
+async function doBackup(){
+  await dirReady;
+  const d = new Date(), label = d.toLocaleString('ja-JP',{year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'});
+  const data = JSON.stringify({app:'vaccineKanri', savedAt:d.toISOString(), state:{...state, lastBackup:label, dirty:false}}, null, 1);
+  const name = state.settings.bkMode === 'dated' ? `${BK_PREFIX}${nowStamp()}.json` : `${BK_PREFIX.slice(0,-1)}.json`;   // 既定は固定名で上書き
+  let where = 'download', note = '';
+  if(backupDir){
+    try{
+      if(await dirPermission()){ await writeFileTo(backupDir, name, data); where = 'folder'; }
+      else note = '\n保存先フォルダへの書き込みが許可されなかったため、ダウンロードで保存します。';
+    }catch(e){ note = `\n保存先フォルダに書き込めなかったため、ダウンロードで保存します。（${e.message}）`; }
+    if(note) alert('保存先フォルダに保存できませんでした。' + note);
+  }
+  if(where === 'download') download(new Blob([data], {type:'application/json'}), name);
+  state.lastBackup = label; state.dirty = false; persist(false); renderHeader();
+  toast(where === 'folder' ? `バックアップを保存しました（フォルダ「${backupDir.name}」）` : 'バックアップファイルを保存しました（ダウンロード）');
+  return where;
+}
+async function restoreFromText(text){
+  try{
+    const obj = JSON.parse(text);
+    const s = obj && obj.app === 'vaccineKanri' ? obj.state : null;
+    if(!s || !s.entries || !s.master) throw new Error('このアプリのバックアップファイルではありません');
+    const n = VACCINES.reduce((a,v)=>a + (s.entries[v.id]||[]).length, 0), has = state.master.list.length || VACCINES.some(v=>state.entries[v.id].length);
+    if(has && !confirm(`バックアップ（${obj.savedAt ? new Date(obj.savedAt).toLocaleString('ja-JP') : '日時不明'}・接種登録 ${n}件・患者 ${s.master.list.length}名）で、現在のデータをすべて置き換えます。よろしいですか？`)) return false;
+    const d = defaultState();
+    state = {...d, ...s, family:{...d.family, ...(s.family||{})}, settings:{...d.settings, ...s.settings}, entries:{...d.entries, ...s.entries}, dirty:false};
+    migrateExtras();   // 以前の版のバックアップに入っている手入力の患者は、患者家族マスタへ移す
+    rebuildMaster(); persist(false); renderAll(); if(dlg.open) dlg.close(); toast(`バックアップから復元しました（接種登録 ${n}件・患者 ${s.master.list.length}名）`);
+    return true;
+  }catch(e){ alert('復元できませんでした：' + e.message); return false; }
+}
+const onRestoreFile = async file => restoreFromText(await file.text());
+const hasData = () => state.master.list.length > 0 || VACCINES.some(v=>state.entries[v.id].length > 0);
+// 復元ダイアログ。intro があれば（データが無い起動時など）説明文を付ける
+async function openRestore(intro){
+  await dirReady;
+  openDlg('バックアップの復元', `${intro?`<p style="margin-top:0">${intro}</p>`:''}<div id="rsList"><div class="hint">読み込み中…</div></div>
+    <div style="margin-top:12px"><button id="rsFile">ファイルを選んで復元</button>${FS_OK?` <button id="rsDir">${backupDir?'保存先フォルダを変更':'保存先フォルダを設定'}</button>`:''}</div>`,
+    `<span class="grow"></span><button id="rsClose">${intro?'復元せずに始める':'閉じる'}</button>`, 'min(640px,96vw)');
+  $('#rsClose').onclick = () => dlg.close();
+  $('#rsFile').onclick = () => $('#fileRestore').click();
+  if(FS_OK) $('#rsDir').onclick = async () => { if(await chooseBackupDir()) openRestore(intro); };
+  const box = $('#rsList');
+  if(!backupDir){ box.innerHTML = `<div class="hint">${FS_OK?'保存先フォルダが未設定です。設定すると、そのフォルダのバックアップから選んで復元できます。':'お使いのブラウザでは保存先フォルダの固定は使えません。「ファイルを選んで復元」を使ってください。'}</div>`; return; }
+  if(!(await dirPermission())){
+    box.innerHTML = `<div class="hint">保存先フォルダ「${esc(backupDir.name)}」を読むには許可が必要です。</div><button class="primary" id="rsAllow" style="margin-top:6px">許可して一覧を表示</button>`;
+    $('#rsAllow').onclick = () => openRestore(intro); return;
+  }
+  try{
+    const files = [];
+    for await (const [n, h] of backupDir.entries()){
+      if(h.kind === 'file' && n.startsWith(BK_PREFIX.slice(0,-1)) && n.endsWith('.json')){ const f = await h.getFile(); files.push({n, f}); }
+    }
+    files.sort((a,b)=>b.f.lastModified - a.f.lastModified);
+    box.innerHTML = files.length ? `<div class="hint" style="margin-bottom:4px">フォルダ「${esc(backupDir.name)}」のバックアップ（新しい順）。選ぶと復元します。</div><div class="bulklist">${files.slice(0,12).map((x,i)=>`<label style="grid-template-columns:1fr 90px;cursor:pointer" data-i="${i}"><span>${i===0?'<span class="tag ok">最新</span> ':''}${esc(new Date(x.f.lastModified).toLocaleString('ja-JP'))}</span><span style="text-align:right">${Math.max(1,Math.round(x.f.size/1024)).toLocaleString()} KB</span></label>`).join('')}</div>`
+      : `<div class="hint">フォルダ「${esc(backupDir.name)}」にバックアップファイルがありません。</div>`;
+    $$('#rsList [data-i]').forEach(l=>l.onclick = async () => { await restoreFromText(await files[+l.dataset.i].f.text()); });
+  }catch(e){ box.innerHTML = `<div class="hint">フォルダを読み込めませんでした：${esc(e.message)}</div>`; }
+}
+// バックアップして終了（ブラウザ内データの削除は任意）
+function openExit(){
+  openDlg('バックアップして終了', `
+    <p style="margin-top:0">現在のデータをバックアップ保存します。${backupDir?`保存先：フォルダ「<b>${esc(backupDir.name)}</b>」`:'保存先フォルダが未設定のため、ダウンロードフォルダに保存されます。'}</p>
+    <label style="display:block;padding:10px;border:1px solid var(--line);border-radius:6px"><input type="checkbox" id="exDel"> バックアップ後に、このPCのブラウザ内のデータを削除する<br><span class="hint">患者情報をPCに残したくない場合に選びます。次回起動時は、バックアップからの復元が必要です。</span></label>`,
+    `<span class="grow"></span><button id="exCancel">キャンセル</button><button class="primary" id="exOk">バックアップして終了</button>`, 'min(560px,96vw)');
+  $('#exCancel').onclick = () => dlg.close();
+  $('#exOk').onclick = async () => {
+    const del = $('#exDel').checked;
+    $('#exOk').disabled = true;
+    const where = await doBackup();
+    if(del){
+      if(where === 'download' && !confirm('バックアップファイルがダウンロードされたことを確認してください。\n（ダウンロードの保存状況はアプリから確認できません）\n\n確認できた場合のみ「OK」を押してください。ブラウザ内のデータを削除します。')){ $('#exOk').disabled = false; return; }
+      try{ localStorage.removeItem(KEY); localStorage.removeItem(KEY+'.tab'); }catch(e){}
+      state = defaultState();
+      dlg.close();
+      document.body.innerHTML = `<div style="max-width:560px;margin:80px auto;padding:0 20px;font-family:inherit"><h2>終了しました</h2><p>バックアップを保存し、このPCのブラウザ内のデータを削除しました。<br>このタブ（ウィンドウ）を閉じてください。</p><p style="color:#66727f;font-size:14px">もう一度使うときは、このファイルを開き、「バックアップ復元」でデータを戻します。</p></div>`;
+      try{ window.close(); }catch(e){}
+      return;
+    }
+    dlg.close();
+    toast('バックアップを保存しました。ブラウザを閉じて構いません');
+    try{ window.close(); }catch(e){}
+  };
+}
+function openSettings(){
+  const s = state.settings;
+  openDlg('設定', `
+    <div class="form2">
+      <label for="sFy">年度の表示</label><input type="text" id="sFy" value="${esc(s.fy)}" style="max-width:200px">
+      <span>年齢の基準日</span>
+      <div><label><input type="radio" name="sBase" value="today" ${s.baseMode!=='fixed'?'checked':''}> 今日（Excelの =TODAY() と同じ）</label><br>
+        <label><input type="radio" name="sBase" value="fixed" ${s.baseMode==='fixed'?'checked':''}> 指定日：</label> <input type="date" id="sBaseDate" value="${esc(s.baseDate)}"></div>
+    </div>
+    <div class="sec" style="margin-top:20px"><h3>データの保存について</h3>
+      <p class="hint" style="font-size:13.5px">登録内容はこのパソコンのブラウザ内に自動保存されます（インターネットには送信されません）。ブラウザの閲覧データを削除すると消えるため、<b>定期的に「バックアップ保存」</b>をしてください。別のパソコンで使うときは、バックアップファイルを「バックアップ復元」で読み込みます。</p></div>
+    <div class="sec"><h3>バックアップのファイル名</h3>
+      <label style="display:block"><input type="radio" name="sBk" value="fixed" ${s.bkMode!=='dated'?'checked':''}> 毎回同じ名前で上書きする（ワクチン管理_バックアップ.json）</label>
+      <label style="display:block"><input type="radio" name="sBk" value="dated" ${s.bkMode==='dated'?'checked':''}> 日時つきの名前で、毎回別のファイルに保存する</label>
+      <p class="hint">上書きは保存先フォルダを設定している場合のみ有効です。フォルダ未設定でダウンロード保存のときは、ブラウザが「(1)」などを付けて別名で保存します。上書きでは過去の状態には戻れません。</p></div>
+    <div class="sec"><h3>バックアップの保存先フォルダ</h3>
+      ${FS_OK?`<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><b id="sDirName">${backupDir?esc(backupDir.name):'（未設定：ダウンロードフォルダに保存）'}</b><button id="sDirSet">${backupDir?'変更':'フォルダを選ぶ'}</button>${backupDir?'<button id="sDirClr">解除</button>':''}</div>
+      <p class="hint">選んだフォルダに、バックアップの保存と復元を行います。ブラウザを起動して最初に使うときだけ、フォルダへの書き込みの許可確認が出ます。「デスクトップ」「ドキュメント」「ダウンロード」そのものは選べないため、その中に専用のフォルダを作って選んでください。</p>`
+      :'<p class="hint">お使いのブラウザでは保存先フォルダの固定は使えません（Chrome / Edge で使えます）。バックアップはダウンロードフォルダに保存されます。</p>'}</div>
+    <div class="sec"><h3>患者家族マスタ</h3>
+      <p class="hint">患者家族マスタ：<b>${state.family.list.length}名</b>（患者マスタとは別のマスタです）。ヘッダーの「患者家族マスタ」から、見る・追加・編集・削除・読み込みができます。</p>
+      <button id="sFamilyView">患者家族マスタを開く</button> <button id="sFamilyCsv">CSV出力</button></div>
+    <div class="sec"><h3>データの削除</h3><button class="danger" id="sClearE">接種登録をすべて削除</button> <button class="danger" id="sClearAll">患者マスタを含め全データを削除</button></div>`,
+    `<span class="grow"></span><button id="sCancel">キャンセル</button><button class="primary" id="sOk">保存</button>`, 'min(640px,96vw)');
+  $('#sCancel').onclick = () => dlg.close();
+  $('#sFamilyView').onclick = openFamilyView;
+  $('#sFamilyCsv').onclick = exportFamilyCsv;
+  if(FS_OK){
+    $('#sDirSet').onclick = async () => { if(await chooseBackupDir()){ toast(`保存先フォルダを「${backupDir.name}」に設定しました`); openSettings(); } };
+    if(backupDir) $('#sDirClr').onclick = async () => { backupDir = null; try{ await idbPut('backupDir', undefined); }catch(e){} openSettings(); };
+  }
+  $('#sOk').onclick = () => {
+    s.fy = $('#sFy').value.trim() || '令和8年度';
+    s.bkMode = $('input[name=sBk]:checked').value;
+    s.baseMode = $('input[name=sBase]:checked').value; s.baseDate = $('#sBaseDate').value;
+    if(s.baseMode==='fixed' && !s.baseDate){ alert('基準日を指定してください'); return; }
+    persist(); renderAll(); dlg.close();
+  };
+  $('#sClearE').onclick = () => {
+    if(!confirm('全ワクチンの接種登録をすべて削除します。元に戻せません。\n（先にバックアップ保存することをおすすめします）\n削除しますか？')) return;
+    VACCINES.forEach(v=>state.entries[v.id]=[]); persist(); renderAll(); dlg.close(); toast('接種登録を削除しました');
+  };
+  $('#sClearAll').onclick = () => {
+    if(!confirm('患者マスタと接種登録をすべて削除します。元に戻せません。\n削除しますか？')) return;
+    const fy = state.settings; state = defaultState(); state.settings = fy; rebuildMaster(); persist(false); renderAll(); dlg.close(); toast('全データを削除しました');
+  };
+}
+
+/* ================= トースト ================= */
+let toastTimer;
+function toast(msg, btn, fn){
+  const t = $('#toast'); $('#toastMsg').textContent = msg;
+  const b = $('#toastBtn'); b.style.display = btn ? '' : 'none'; b.textContent = btn || ''; b.onclick = () => { t.style.display='none'; fn && fn(); };
+  t.style.display = 'flex'; clearTimeout(toastTimer); toastTimer = setTimeout(()=>t.style.display='none', btn ? 6000 : 3000);
+}
+
+/* ================= 接種予定者一覧・印刷 ================= */
+const WD = '日月火水木金土';
+const NODATE = '__none';   // 一覧で「日付が未定の方」を表す値
+const fmtJ = s => { if(s === NODATE) return '日付未定'; const [y,m,d] = s.split('-').map(Number); return `${y}年${m}月${d}日（${WD[new Date(y,m-1,d).getDay()]}）`; };
+// 指定日に接種予定の方を「個人宅（かな順）→施設ごと（施設名順・かな順）」に並べる
+function dayGroups(v, date){
+  const byKana = (a,b) => norm(a.p.kana||a.p.name).localeCompare(norm(b.p.kana||b.p.name),'ja') || String(a.e.pid).localeCompare(String(b.e.pid),'ja',{numeric:true});
+  const rows = state.entries[v.id].filter(e=>(date===NODATE ? isNoPlan(e) : e.plan===date) && !e.cancel).map(e=>({e, p:patientOf(e)}));
+  // 患者家族は、同じ日に対象の患者がいれば、その患者のすぐ下に置く（かな順は無視）
+  const targetOf = r => r.p.rel ? rows.find(t=>t!==r && !t.p.rel && (r.p.relTo ? t.e.pid===r.p.relTo : (r.p.relToName && t.p.name===r.p.relToName))) : null;
+  const attached = new Map(), main = [];
+  rows.forEach(r=>{ const t = targetOf(r); if(t){ if(!attached.has(t)) attached.set(t, []); attached.get(t).push(r); } else main.push(r); });
+  const withFam = list => list.sort(byKana).flatMap(r=>[r, ...(attached.get(r)||[]).sort(byKana)]);
+  const home = withFam(main.filter(r=>!r.p.gh)), gmap = new Map();
+  main.filter(r=>r.p.gh).forEach(r=>{ if(!gmap.has(r.p.gh)) gmap.set(r.p.gh, []); gmap.get(r.p.gh).push(r); });
+  const groups = [];
+  if(home.length) groups.push(['個人宅', home]);
+  [...gmap.keys()].sort((a,b)=>a.localeCompare(b,'ja')).forEach(g=>groups.push([g, withFam(gmap.get(g))]));
+  return {rows, groups};
+}
+function planListHtml(date, scope, pageBreak){
+  const base = baseDate(), vs = scope==='all' ? VACCINES : [VAC[cur]];
+  let total = 0; const by = [];
+  let h = `<div class="pl"><h2>接種予定者一覧　${date===NODATE?'接種予定日が未定の方':esc(fmtJ(date))}</h2><div class="sub">${esc(state.settings.fy)}　並び順：個人宅（かな順）→ 施設ごと（施設名順・かな順）<br>年齢・「65歳以上」などの判定は、<b>接種日の年齢</b>です（接種日が未入力の方は接種予定日の年齢）。</div>`;
+  for(const v of vs){
+    const {rows, groups} = dayGroups(v, date);
+    if(!rows.length) continue;
+    total += rows.length; by.push(`${v.label} ${rows.length}名`);
+    h +=`<h3 class="vt${pageBreak && h.includes('class="vt') ? ' pb' : ''}">${esc(v.label)}（${rows.length}名）</h3>`;
+    const hasR = v.radios.length > 0;
+    groups.forEach(([gname, list], gi)=>{
+      h += `<h4 class="gt${pageBreak && gi>0 ? ' pb' : ''}">${esc(gname)}（${list.length}名）</h4>
+        <table><thead><tr><th style="width:26px">No</th><th style="width:44px">ID</th><th>氏名</th><th style="width:44px">年齢<br>(接種日)</th><th style="width:78px">生年月日</th>${hasR?`<th>${esc(v.radios[0].g)}</th>`:''}<th>区分・確認</th><th>住所</th><th>備考</th><th style="width:34px">済</th></tr></thead><tbody>
+        ${list.map(({e,p},i)=>{
+          const age = vacAge(e, p, base).age, tg = [];
+          if(v.auto && v.auto.test(age)) tg.push((v.auto.short||v.auto.label) + '（接種日）');
+          v.flags.forEach(g=>g.items.forEach(([k,l])=>{ if(e.sel[k]) tg.push(l.replace(/（.*/,'')); }));
+          return `<tr><td class="c">${i+1}</td><td>${esc(e.pid)}</td><td><b>${esc(p.name||'')}</b>${p.kana?`<span class="kn">${esc(p.kana)}</span>`:''}${p.rel?`<span class="kn" style="font-weight:700;color:#000">【家族】${esc(relText(p))}</span>`:''}</td><td class="c">${age ?? ''}</td><td>${fmtD(p.birth)}</td>${hasR?`<td>${esc(radioText(v,e))}</td>`:''}<td>${esc(tg.join('・'))}</td><td>${esc(p.addr||'')}</td><td>${esc(e.memo||'')}</td><td class="c">${e.done?'済':'<span class="chkbox"></span>'}</td></tr>`;
+        }).join('')}</tbody></table>`;
+    });
+  }
+  return total ? h + `<div class="total">合計 ${total} 名${scope==='all'&&by.length>1?`（${esc(by.join('／'))}）`:''}</div></div>` : h + `<div class="none">${date===NODATE?'接種予定日が未定の方はいません。':'この日に接種予定の方はいません。'}</div></div>`;
+}
+function openPlanList(){
+  const pd = new Map();
+  VACCINES.forEach(v=>state.entries[v.id].forEach(e=>{ if(e.plan && !e.cancel) pd.set(e.plan, (pd.get(e.plan)||0)+1); }));
+  const dates = [...pd.keys()].sort(), t = todayStr(), fut = dates.filter(d=>d>=t);
+  const noN = VACCINES.reduce((a,v)=>a + state.entries[v.id].filter(isNoPlan).length, 0);
+  let date = fut[0] || dates[dates.length-1] || t, scope = 'cur', pb = false;
+  const calCounts = () => { const m = new Map(); (scope==='all' ? VACCINES : [VAC[cur]]).forEach(v=>state.entries[v.id].forEach(e=>{ if(e.plan && !e.cancel){ const o = m.get(e.plan) || {}; o[v.id] = (o[v.id]||0)+1; m.set(e.plan, o); } })); return m; };
+  openDlg('接種予定者一覧', `
+    <div class="toolbar" style="margin-bottom:6px">
+      <label>接種予定日 <input type="date" id="plDate" value="${date}"></label><button type="button" id="plCal" title="予定のある日と人数をカレンダーで見る">📅 カレンダー</button><button type="button" id="plNone" title="接種予定日が未入力の方の一覧（印刷もできます）">接種予定日が未定の方（全ワクチン計 ${noN}）</button>
+      <label><input type="checkbox" id="plAll"> すべてのワクチン</label>
+      <label><input type="checkbox" id="plPb"> 施設ごとに改ページ</label>
+    </div>
+    <div id="plBody" style="border:1px solid var(--line);border-radius:6px;padding:12px;background:#fff"></div>`,
+    `<span class="grow"></span><button id="plClose">閉じる</button><button class="primary" id="plPrint">印刷する</button>`, 'min(1100px,96vw)');
+  const draw = () => { $('#plBody').innerHTML = planListHtml(date, scope, pb); };
+  $('#plDate').onchange = ev => { date = ev.target.value || t; draw(); };
+  $('#plAll').onchange = ev => { scope = ev.target.checked ? 'all' : 'cur'; draw(); };
+  $('#plPb').onchange = ev => { pb = ev.target.checked; draw(); };
+  $('#plNone').onclick = () => { date = NODATE; draw(); };
+  $('#plCal').onclick =ev => { ev.stopPropagation(); openCalPopup(ev.currentTarget, calCounts(), date, d => { date = d; $('#plDate').value = d; draw(); }, ['接種予定日カレンダー', scope==='all' ? 'すべてのワクチン' : VAC[cur].label, scope==='all']); };
+  $('#plClose').onclick = () => dlg.close();
+  $('#plPrint').onclick = () => { $('#printArea').innerHTML = planListHtml(date, scope, pb); window.print(); };
+  draw();
+}
+
+/* ================= 患者マスタの表示・編集・削除（アプリ内の患者マスタ） ================= */
+const mv = {q:'', gh:''};
+function recCountMap(){ const m = new Map(); VACCINES.forEach(v=>state.entries[v.id].forEach(e=>m.set(e.pid, (m.get(e.pid)||0)+1))); return m; }
+function openMasterView(){
+  const list = state.master.list, ghs = [...new Set(list.map(p=>p.gh).filter(Boolean))].sort((a,b)=>a.localeCompare(b,'ja')), base = baseDate();
+  openDlg('患者マスタ', `
+    <div class="note" style="margin-top:0">ここは<b>このアプリの中の患者マスタ</b>です。ここで編集・削除しても、<b>元のExcelは変わりません</b>。「患者マスタ読込」で読み込み直すと、Excelの内容に置き換わり、ここでの編集は消えます。元のExcelにも同じ変更をするか、下の「CSV出力」で書き出して使ってください。</div>
+    <div class="toolbar" style="margin-bottom:6px">
+      <input type="search" id="mvQ" placeholder="ID・氏名・ふりがな・住所で検索" value="${esc(mv.q)}" style="width:260px">
+      <select id="mvGh"><option value="">施設：すべて</option><option value="__none">施設なし（個人宅）</option>${ghs.map(g=>`<option ${mv.gh===g?'selected':''}>${esc(g)}</option>`).join('')}</select>
+      <button class="primary" id="mvAdd">＋ 患者を追加</button><button id="mvCsv">CSV出力</button>
+      <span class="summary" id="mvCnt"></span>
+    </div>
+    <div class="tablewrap" style="max-height:52vh"><table class="list"><thead><tr><th>ID</th><th>氏名</th><th>生年月日</th><th>年齢</th><th>施設</th><th>住所</th><th>接種記録</th><th></th></tr></thead><tbody id="mvBody"></tbody></table><div class="empty" id="mvEmpty"></div></div>`,
+    `<span class="grow"></span><button id="mvClose">閉じる</button>`, 'min(1100px,96vw)');
+  $('#mvGh').value = ghs.includes(mv.gh) || mv.gh === '__none' ? mv.gh : '';
+  const rc = recCountMap();
+  const draw = () => {
+    const terms = norm(mv.q) ? mv.q.split(/[\s　]+/).map(norm).filter(Boolean) : [];
+    let rows = list.filter(p=>(!mv.gh || (mv.gh==='__none' ? !p.gh : p.gh===mv.gh)) && (!terms.length || terms.every(t=>norm([p.id,p.name,p.kana,p.addr,p.gh].join(' ')).includes(t))));
+    rows.sort((a,b)=>norm(a.kana||a.name).localeCompare(norm(b.kana||b.name),'ja'));
+    const total = rows.length; rows = rows.slice(0, 200);
+    $('#mvBody').innerHTML = rows.map(p=>`<tr data-id="${esc(p.id)}"><td>${esc(p.id)}</td><td><span class="nm">${esc(p.name)}</span><span class="kana">${esc(p.kana)}</span></td><td>${fmtD(p.birth)}</td><td class="num">${ageAt(p.birth, base) ?? ''}</td><td>${esc(p.gh||'')}</td><td style="white-space:normal;min-width:200px">${esc(p.addr||'')}</td><td class="num">${rc.get(p.id)||''}</td><td style="white-space:nowrap"><button class="small mvEdit">編集</button> <button class="small danger mvDel">削除</button></td></tr>`).join('');
+    $('#mvCnt').innerHTML = `全 <b>${list.length.toLocaleString()}</b> 名中 <b>${total.toLocaleString()}</b> 名${total>200?'（先頭の200名を表示。検索で絞り込んでください）':''}`;
+    $('#mvEmpty').textContent = list.length ? (rows.length ? '' : '該当する患者はいません。') : '患者マスタが読み込まれていません。';
+  };
+  $('#mvQ').oninput = ev => { mv.q = ev.target.value; draw(); };
+  $('#mvGh').onchange = ev => { mv.gh = ev.target.value; draw(); };
+  $('#mvAdd').onclick = () => openMasterEdit(null);
+  $('#mvCsv').onclick = () => exportMasterCsv();
+  $('#mvClose').onclick = () => dlg.close();
+  $('#mvBody').onclick = ev => {
+    const tr = ev.target.closest('tr[data-id]'); if(!tr) return; const id = tr.dataset.id;
+    if(ev.target.closest('.mvDel')) deleteMasterPatient(id);
+    else openMasterEdit(id);
+  };
+  draw();
+}
+function deleteMasterPatient(id){
+  const p = masterMap.get(id); if(!p) return;
+  const n = recCountMap().get(id) || 0;
+  if(!confirm(`${p.name}（ID ${id}）を、このアプリの患者マスタから削除します。\n${n?`この方の接種記録（${n}件）は残ります（氏名・住所などは、記録に残っている内容を使います）。`:'この方の接種記録はありません。'}\n元のExcelは変わりません。削除しますか？`)) return;
+  const idx = state.master.list.findIndex(x=>x.id===id), removed = state.master.list[idx];
+  state.master.list.splice(idx, 1); state.master.edited = true; rebuildMaster(); persist(); renderAll(); openMasterView();
+  toast(`${removed.name} さんを患者マスタから削除しました`, '元に戻す', ()=>{ state.master.list.splice(idx, 0, removed); rebuildMaster(); persist(); renderAll(); if(dlg.open && $('#mvBody')) openMasterView(); });
+}
+function openMasterEdit(id){
+  const p = id ? masterMap.get(id) : {id:'', name:'', kana:'', birth:'', addr:'', gh:''}; if(!p) return;
+  const n = id ? (recCountMap().get(id) || 0) : 0;
+  openDlg(id ? '患者マスタの編集' : '患者マスタに追加', `
+    ${id?`<p style="margin-top:0">この方の接種記録は<b>${n}件</b>です。氏名・住所などを直すと、記録の表示にも反映されます。</p>`:''}
+    <div class="manual" style="margin-top:0">
+      <div><label>ID<span class="req">必須</span></label><input type="text" id="meId" value="${esc(p.id)}"></div>
+      <div><label>氏名</label><input type="text" id="meName" value="${esc(p.name)}"></div>
+      <div><label>ふりがな</label><input type="text" id="meKana" value="${esc(p.kana)}"></div>
+      <div><label>生年月日</label><input type="date" id="meBirth" value="${esc(p.birth||'')}"></div>
+      <div><label>施設名（グループホーム）</label><input type="text" id="meGh" value="${esc(p.gh||'')}"></div>
+      <div style="grid-column:1/-1"><label>住所</label><input type="text" id="meAddr" value="${esc(p.addr||'')}"></div>
+    </div>`,
+    `<span class="grow"></span><button id="meCancel">キャンセル</button><button class="primary" id="meOk">保存</button>`, 'min(760px,96vw)');
+  $('#meCancel').onclick = () => openMasterView();
+  $('#meOk').onclick = () => {
+    const rec = {id:$('#meId').value.trim(), name:$('#meName').value.trim(), kana:$('#meKana').value.trim(), birth:$('#meBirth').value, addr:$('#meAddr').value.trim(), gh:$('#meGh').value.trim()};
+    if(!rec.id){ alert('IDを入力してください。'); return; }
+    if(!rec.name && !rec.kana){ alert('氏名またはふりがなを入力してください。'); return; }
+    if(rec.id !== (id||'') && masterMap.has(rec.id)){ alert(`ID「${rec.id}」は、すでに患者マスタにあります（${masterMap.get(rec.id).name}）。`); return; }
+    if(id){
+      const i = state.master.list.findIndex(x=>x.id===id); state.master.list[i] = rec;
+      VACCINES.forEach(v=>state.entries[v.id].forEach(e=>{ if(e.pid===id){ e.pid = rec.id; e.snap = {...rec}; } }));
+    } else {
+      state.master.list.push(rec);
+      // 手入力の患者として登録されていた同じIDの方は、マスタの患者に切り替える
+      state.family.list = state.family.list.filter(x=>x.id!==rec.id);
+      VACCINES.forEach(v=>state.entries[v.id].forEach(e=>{ if(e.pid===rec.id) e.snap = {...rec}; }));
+    }
+    state.master.edited = true; rebuildMaster(); persist(); renderAll(); toast(id ? '患者マスタを更新しました' : '患者マスタに追加しました'); openMasterView();
+  };
+  $('#meId').focus();
+}
+function exportMasterCsv(){
+  const list = state.master.list; if(!list.length){ alert('患者マスタが読み込まれていません。'); return; }
+  const q = s => `"${String(s ?? '').replace(/"/g,'""')}"`;
+  const rows = [['ID','氏名','ふりがな','生年月日','住所','グループホーム'], ...list.map(p=>[p.id,p.name,p.kana,fmtD(p.birth),p.addr,p.gh])];
+  download(new Blob(['﻿' + rows.map(r=>r.map(q).join(',')).join('\r\n')], {type:'text/csv'}), `患者マスタ_${nowStamp()}.csv`);
+  toast(`${list.length.toLocaleString()}名分のCSVを出力しました`);
+}
+
+/* ================= 患者家族マスタ（患者マスタとは別。IDは「M0001」のように自動で付ける） ================= */
+// 患者家族マスタの患者を編集する（pid が null のときは新規追加）。すべてのワクチンの記録に反映される。
+// IDを患者マスタのIDに変えると、その記録は患者マスタの患者として扱う
+function openPatientEdit(pid, onDone){
+  const isNew = !pid;
+  const fromRec = pid ? VACCINES.flatMap(v=>state.entries[v.id]).find(e=>e.pid===pid) : null;
+  const p = isNew ? {id:'', name:'', kana:'', birth:'', addr:'', gh:''} : (familyMap.get(pid) || (fromRec && fromRec.snap) || {id:pid});
+  const uses = isNew ? 0 : VACCINES.reduce((n,v)=>n + state.entries[v.id].filter(e=>e.pid===pid).length, 0);
+  const relOpt = p.rel && !REL_LIST.includes(p.rel) ? 'その他（手入力）' : (p.rel || '');
+  openDlg(isNew ? '患者家族マスタに追加' : '患者家族マスタの編集', `
+    ${isNew?'':`<p style="margin-top:0">この方の記録（<b>${uses}件</b>）すべてに反映されます。</p>`}
+    <div class="manual" style="margin-top:0">
+      <div style="grid-column:1/-1;padding:10px;background:#fff;border-radius:6px;border:1px solid var(--line)">
+        <label>患者マスタの患者名から住所・関連する患者を設定する（ご家族の場合）</label>
+        <input type="search" id="peFind" placeholder="患者さんの氏名・ふりがな・IDで検索" autocomplete="off">
+        <div class="results" id="peFindRes" style="background:#fff"></div><div id="peFound" class="hint" style="margin-top:6px"></div>
+      </div>
+      <div><label>ID<span class="hint" style="margin-left:6px;font-weight:400">${isNew?'空欄なら自動で付けます':'患者マスタのIDに変えることもできます'}</span></label><input type="text" id="peId" value="${esc(p.id)}"></div>
+      <div><label>氏名</label><input type="text" id="peName" value="${esc(p.name||'')}"></div>
+      <div><label>ふりがな</label><input type="text" id="peKana" value="${esc(p.kana||'')}"></div>
+      <div><label>生年月日</label><input type="date" id="peBirth" value="${esc(p.birth||'')}"></div>
+      <div><label>施設名</label><input type="text" id="peGh" value="${esc(p.gh||'')}"></div>
+      <div><label>続柄</label>
+        <select id="peRel" style="width:100%;font-size:17px;padding:10px 12px"><option value="">（なし）</option>${REL_LIST.map(r=>`<option ${r===relOpt?'selected':''}>${esc(r)}</option>`).join('')}</select>
+        <input type="text" id="peRelOther" value="${relOpt.startsWith('その他')?esc(p.rel):''}" placeholder="続柄を入力（例：甥・姪、知人）" style="display:${relOpt.startsWith('その他')?'':'none'};margin-top:6px"></div>
+      <div style="grid-column:1/-1"><label>住所</label><input type="text" id="peAddr" value="${esc(p.addr||'')}"></div>
+    </div>`,
+    `<span class="grow"></span><button id="peCancel">キャンセル</button><button class="primary" id="peOk">保存</button>`, 'min(760px,96vw)');
+  enhanceDates($('#dlgBody'));   // 患者家族マスタの生年月日は、西暦・和暦のどちらでも入力できる
+  let relTo = p.relTo ? {id:p.relTo, name:p.relToName||''} : (p.relToName ? {id:'', name:p.relToName} : null);
+  // 関連する患者の表示。「解除」で消せる
+  const renderFound = note => {
+    $('#peFound').innerHTML = (relTo && relTo.name ? `関連する患者：<b>${esc(relTo.name)}</b>${relTo.id?`（ID ${esc(relTo.id)}）`:''} <button type="button" class="small" id="peClearRel">解除</button>` : '関連する患者：なし') + (note ? `　${note}` : '');
+    const b = $('#peClearRel'); if(b) b.onclick = () => { relTo = null; renderFound('解除しました。'); };
+  };
+  renderFound();
+  $('#peRel').onchange = ev => { $('#peRelOther').style.display = ev.target.value.startsWith('その他') ? '' : 'none'; };
+  const fi = $('#peFind'), fr = $('#peFindRes'); let fh = [];
+  fi.oninput = () => {
+    const terms = norm(fi.value) ? fi.value.split(/[\s　]+/).map(norm).filter(Boolean) : [];
+    fh = terms.length ? searchIdx.filter(x=>!x.p.fam && terms.every(t=>x.s.includes(t))).slice(0,30) : [];
+    fr.innerHTML = terms.length ? (fh.length ? fh.map((x,i)=>`<div class="res" data-i="${i}" style="grid-template-columns:70px 1fr 2fr"><span class="id">${esc(x.p.id)}</span><span><span class="nm">${esc(x.p.name)}</span><span class="kana">${esc(x.p.kana)}</span></span><span class="gh">${esc(x.p.addr||'（住所なし）')}</span></div>`).join('') : '<div class="res" style="cursor:default;grid-template-columns:1fr"><span class="hint">該当する患者がいません</span></div>') : '';
+  };
+  fr.onclick = ev => { const r = ev.target.closest('.res[data-i]'); if(!r) return; const q = fh[+r.dataset.i].p;
+    $('#peAddr').value = q.addr || ''; relTo = {id:q.id, name:q.name}; renderFound('✔ 住所を反映しました。'); fr.innerHTML = ''; fi.value = ''; };
+  $('#peCancel').onclick = () => { dlg.close(); onDone && onDone(); };
+  $('#peOk').onclick = () => {
+    let newId = $('#peId').value.trim() || p.id;
+    const rec = {id:newId, name:$('#peName').value.trim(), kana:$('#peKana').value.trim(), birth:$('#peBirth').value, addr:$('#peAddr').value.trim(), gh:$('#peGh').value.trim()};
+    if(!rec.name && !rec.kana){ alert('氏名またはふりがなを入力してください。'); return; }
+    let rel = $('#peRel').value; if(rel.startsWith('その他')) rel = $('#peRelOther').value.trim() || 'その他';
+    if(rel) rec.rel = rel;
+    if(relTo && relTo.name){ if(relTo.id) rec.relTo = relTo.id; rec.relToName = relTo.name; }
+    if(!newId){ newId = rec.id = nextFamilyId(); }
+    const inMasterNew = masterMap.has(newId);
+    if(newId !== p.id){
+      if(familyMap.has(newId)){ alert(`ID「${newId}」は、すでに患者家族マスタの別の方に使われています。`); return; }
+      if(inMasterNew && !confirm(`ID「${newId}」は患者マスタに登録されている患者（${masterMap.get(newId).name}）です。\nこの方の記録を、患者マスタの患者として扱います（氏名・住所などは患者マスタの内容になります）。よろしいですか？`)) return;
+    }
+    const final = inMasterNew ? {...masterMap.get(newId)} : rec;
+    if(!isNew) VACCINES.forEach(v=>state.entries[v.id].forEach(e=>{ if(e.pid===p.id){ e.pid = newId; e.snap = {...final}; } }));
+    state.family.list = state.family.list.filter(x=>x.id!==p.id && x.id!==newId);
+    if(!inMasterNew) state.family.list.push(rec);
+    state.family.edited = true; rebuildMaster(); persist(); renderAll(); dlg.close();
+    toast(inMasterNew ? `患者マスタの患者「${final.name}」として扱います` : (isNew ? '患者家族マスタに追加しました' : '患者家族マスタを更新しました'));
+    onDone && onDone();
+  };
+  $('#peName').focus();
+}
+// 患者家族マスタをCSVで出力
+function exportFamilyCsv(){
+  const list = state.family.list; if(!list.length){ alert('患者家族マスタには、まだ誰も登録されていません。'); return; }
+  const q = s => `"${String(s ?? '').replace(/"/g,'""')}"`;
+  const rows = [['ID','氏名','ふりがな','生年月日','住所','グループホーム','続柄','関連する患者'], ...list.map(p=>[p.id,p.name,p.kana,fmtD(p.birth),p.addr,p.gh,p.rel||'',p.relToName||''])];
+  download(new Blob(['﻿' + rows.map(r=>r.map(q).join(',')).join('\r\n')], {type:'text/csv'}), `患者家族マスタ_${nowStamp()}.csv`);
+  toast(`${list.length.toLocaleString()}名分のCSVを出力しました`);
+}
+const fv = {q:''};
+// 患者家族マスタの一覧（見る・追加・編集・削除・読込・CSV出力）
+function openFamilyView(){
+  const list = state.family.list, base = baseDate();
+  openDlg('患者家族マスタ', `
+    <div class="note" style="margin-top:0"><b>患者マスタとは別のマスタ</b>です。患者マスタを読み込んでも、ここは変わりません（逆も同じです）。IDは「M0001」のように自動で付きます。</div>
+    <div class="toolbar" style="margin-bottom:6px">
+      <input type="search" id="fvQ" placeholder="ID・氏名・ふりがな・続柄・住所で検索" value="${esc(fv.q)}" style="width:260px">
+      <button class="primary" id="fvAdd">＋ 家族を追加</button><button id="fvLoad">家族マスタ読込（Excel / CSV）</button><button id="fvCsv">CSV出力</button>
+      <span class="summary" id="fvCnt"></span>
+    </div>
+    <div class="tablewrap" style="max-height:52vh"><table class="list"><thead><tr><th>ID</th><th>氏名</th><th>生年月日</th><th>年齢</th><th>続柄</th><th>関連する患者</th><th>住所</th><th>接種記録</th><th></th></tr></thead><tbody id="fvBody"></tbody></table><div class="empty" id="fvEmpty"></div></div>`,
+    `<span class="grow"></span><button id="fvClose">閉じる</button>`, 'min(1100px,96vw)');
+  const rc = recCountMap();
+  const draw = () => {
+    const terms = norm(fv.q) ? fv.q.split(/[\s　]+/).map(norm).filter(Boolean) : [];
+    let rows = list.filter(p=>!terms.length || terms.every(t=>norm([p.id,p.name,p.kana,p.addr,p.gh,p.rel,p.relToName].join(' ')).includes(t)));
+    rows.sort((a,b)=>String(a.id).localeCompare(String(b.id),'ja',{numeric:true}));
+    const total = rows.length; rows = rows.slice(0, 200);
+    $('#fvBody').innerHTML = rows.map(p=>`<tr data-id="${esc(p.id)}"><td>${esc(p.id)}</td><td><span class="nm">${esc(p.name)}</span><span class="kana">${esc(p.kana)}</span></td><td>${fmtD(p.birth)}</td><td class="num">${ageAt(p.birth, base) ?? ''}</td><td>${esc(p.rel||'')}</td><td>${esc(p.relToName||'')}</td><td style="white-space:normal;min-width:180px">${esc(p.addr||'')}</td><td class="num">${rc.get(p.id)||''}</td><td style="white-space:nowrap"><button class="small fvEdit">編集</button> <button class="small danger fvDel">削除</button></td></tr>`).join('');
+    $('#fvCnt').innerHTML = `全 <b>${list.length.toLocaleString()}</b> 名中 <b>${total.toLocaleString()}</b> 名${total>200?'（先頭の200名を表示）':''}`;
+    $('#fvEmpty').textContent = list.length ? (rows.length ? '' : '該当する方はいません。') : '患者家族マスタには、まだ誰も登録されていません。「＋ 家族を追加」か「家族マスタ読込」で登録できます。';
+  };
+  $('#fvQ').oninput = ev => { fv.q = ev.target.value; draw(); };
+  $('#fvAdd').onclick = () => openPatientEdit(null, openFamilyView);
+  $('#fvLoad').onclick = () => $('#fileFamily').click();
+  $('#fvCsv').onclick = exportFamilyCsv;
+  $('#fvClose').onclick = () => dlg.close();
+  $('#fvBody').onclick = ev => {
+    const tr = ev.target.closest('tr[data-id]'); if(!tr) return; const id = tr.dataset.id;
+    if(ev.target.closest('.fvDel')) deleteFamilyPatient(id); else openPatientEdit(id, openFamilyView);
+  };
+  draw();
+}
+function deleteFamilyPatient(id){
+  const p = familyMap.get(id); if(!p) return;
+  const n = recCountMap().get(id) || 0;
+  if(!confirm(`${p.name}（ID ${id}）を、患者家族マスタから削除します。\n${n?`この方の接種記録（${n}件）は残ります（氏名・住所などは、記録に残っている内容を使います）。`:'この方の接種記録はありません。'}\n削除しますか？`)) return;
+  const idx = state.family.list.findIndex(x=>x.id===id), removed = state.family.list[idx];
+  state.family.list.splice(idx, 1); state.family.edited = true; rebuildMaster(); persist(); renderAll(); openFamilyView();
+  toast(`${removed.name} さんを患者家族マスタから削除しました`, '元に戻す', ()=>{ state.family.list.splice(idx, 0, removed); rebuildMaster(); persist(); renderAll(); if(dlg.open && $('#fvBody')) openFamilyView(); });
+}
+// 患者家族マスタのExcel / CSV の読み込み（患者マスタとは別。IDが空の行は、M0001 のように自動で付ける）
+const FFIELDS = [['id','ID（空欄の行は自動で付けます）'],['name','氏名'],['kana','ふりがな'],['birth','生年月日'],['addr','住所'],['gh','施設名'],['rel','続柄'],['relToName','関連する患者（患者名）']];
+const FALIAS = {
+  id:['id','家族id','番号'],
+  rel:['続柄','続き柄','関係'],
+  relToName:['関連する患者','関連患者','患者氏名','患者名','本人氏名','本人','患者'],
+  kana:MALIAS.kana, birth:MALIAS.birth, gh:MALIAS.gh,
+  addr:['住所','現住所','住民票住所'],
+  name:['氏名','家族氏名','家族名','ご家族氏名','名前'],
+};
+function detectFHeader(rows){
+  let best = -1, bestScore = 0;
+  for(let r = 0; r < Math.min(rows.length, 15); r++){
+    const hs = (rows[r]||[]).map(normH); let sc = 0;
+    for(const al of Object.values(FALIAS)) if(hs.some(h=>h && al.some(a=>h===normH(a)))) sc += 2; else if(hs.some(h=>h && al.some(a=>h.includes(normH(a))))) sc += 1;
+    if(sc > bestScore){ bestScore = sc; best = r; }
+  }
+  return best;
+}
+function detectFMap(rows, hr){
+  const hs = hr >= 0 ? (rows[hr]||[]).map(normH) : [], map = {}, used = new Set();
+  for(const f of ['id','rel','relToName','kana','birth','gh','addr','name']){
+    const al = FALIAS[f].map(normH);
+    let i = hs.findIndex((h,j)=>h && !used.has(j) && al.includes(h));
+    if(i < 0) i = hs.findIndex((h,j)=>h && !used.has(j) && al.some(a=>h.includes(a)));
+    if(i >= 0){ map[f] = i; used.add(i); }
+  }
+  return map;
+}
+function buildFamily(rows, hr, map){
+  // これまでの家族と同じ方か：氏名が同じで、生年月日が同じ（どちらかが未入力でも同じとみなす）
+  const findEx = (name, birth) => state.family.list.find(p=>normH(p.name) === normH(name) && (!birth || !p.birth || birth === p.birth));
+  const masterByName = new Map(); state.master.list.forEach(p=>{ const k = normH(p.name); if(k && !masterByName.has(k)) masterByName.set(k, p); });
+  const out = new Map(), batch = new Set(); let bad = 0, auto = 0, noBirth = 0;
+  for(let r = hr + 1; r < rows.length; r++){
+    const row = rows[r] || [], g = f => map[f] == null || map[f] < 0 ? null : row[map[f]];
+    const name = strVal(g('name')), kana = strVal(g('kana'));
+    if(!name && !kana){ if(row.some(c=>c != null && String(c).trim() !== '')) bad++; continue; }
+    const birth = parseDate(g('birth'));
+    let id = toIdStr(g('id'));
+    if(!id){
+      const ex = findEx(name, birth);
+      id = ex && !batch.has(ex.id) ? ex.id : nextFamilyId(batch); auto++;
+    }
+    batch.add(id);
+    const p = {id, name, kana, birth, addr:strVal(g('addr')), gh:strVal(g('gh'))};
+    const rel = strVal(g('rel')); if(rel) p.rel = rel;
+    const rn = strVal(g('relToName')); if(rn){ p.relToName = rn; const m = masterByName.get(normH(rn)); if(m) p.relTo = m.id; }
+    if(!birth) noBirth++;
+    out.set(id, p);
+  }
+  return {list:[...out.values()], bad, auto, noBirth};
+}
+async function onFamilyFile(file){
+  let sheets;
+  try{ sheets = await readAnyTable(file); }catch(e){ alert('読み込めませんでした：' + e.message); return; }
+  if(!sheets.length){ alert('シートが見つかりません'); return; }
+  const tmp = {sheets, si: Math.max(0, sheets.findIndex(s=>s.name.includes('家族'))), hr:0, map:{}};
+  const reDetect = () => { const rows = tmp.sheets[tmp.si].rows; tmp.hr = Math.max(0, detectFHeader(rows)); tmp.map = detectFMap(rows, tmp.hr); };
+  reDetect();
+  const draw = () => {
+    const rows = tmp.sheets[tmp.si].rows, hdr = rows[tmp.hr] || [];
+    const ncol = Math.max(0, ...rows.slice(0, 50).map(r=>r.length));
+    const opts = sel => `<option value="-1">（使わない）</option>` + Array.from({length:ncol}, (_,i)=>`<option value="${i}" ${sel===i?'selected':''}>${colLetter(i)}列：${esc(strVal(hdr[i])||'（見出しなし）')}</option>`).join('');
+    const res = buildFamily(rows, tmp.hr, tmp.map), prev = res.list.slice(0, 5), ex = state.family.list.length;
+    $('#dlgBody').innerHTML = `
+      <div class="sec"><h3>読み込むファイル</h3><div><b>${esc(file.name)}</b></div>
+        <div class="mapgrid" style="margin-top:8px">
+          <div><label>シート</label><select id="fSheet">${sheets.map((s,i)=>`<option value="${i}" ${i===tmp.si?'selected':''}>${esc(s.name)}</option>`).join('')}</select></div>
+          <div><label>見出しの行</label><select id="fHr">${Array.from({length:Math.min(rows.length,15)},(_,i)=>`<option value="${i}" ${i===tmp.hr?'selected':''}>${i+1}行目</option>`).join('')}</select></div>
+        </div></div>
+      <div class="sec"><h3>列の割り当て（自動判定済み。違っていれば変更してください）</h3>
+        <div class="mapgrid">${FFIELDS.map(([f,l])=>`<div><label>${l}</label><select data-f="${f}">${opts(tmp.map[f] ?? -1)}</select></div>`).join('')}</div></div>
+      <div class="sec"><h3>確認（先頭5名）</h3>
+        <div style="overflow:auto"><table class="maptbl"><tr><th>ID</th><th>氏名</th><th>ふりがな</th><th>生年月日</th><th>住所</th><th>続柄</th><th>関連する患者</th></tr>
+        ${prev.map(p=>`<tr><td>${esc(p.id)}</td><td>${esc(p.name)}</td><td>${esc(p.kana)}</td><td>${fmtD(p.birth)}</td><td>${esc(p.addr)}</td><td>${esc(p.rel||'')}</td><td>${esc(p.relToName||'')}</td></tr>`).join('') || '<tr><td colspan="7">データがありません</td></tr>'}</table></div>
+        <p>読み込み件数：<b>${res.list.length.toLocaleString()}名</b>${res.auto?`　（IDを自動で付けた方 ${res.auto}名）`:''}${res.bad?`　<span class="tag warn">氏名のない行 ${res.bad}件は除外</span>`:''}</p>
+        <p class="hint">${ex?`現在の患者家族マスタ（${ex.toLocaleString()}名）は、この内容に置き換わります。同じ氏名・生年月日の方には、これまでのIDを引き継ぎます。`:''}<b>患者マスタには影響しません。</b>登録済みの接種記録はそのまま残ります。</p>
+      </div>`;
+    $('#fSheet').onchange = ev => { tmp.si = +ev.target.value; reDetect(); draw(); };
+    $('#fHr').onchange = ev => { tmp.hr = +ev.target.value; tmp.map = detectFMap(tmp.sheets[tmp.si].rows, tmp.hr); draw(); };
+    $$('#dlgBody select[data-f]').forEach(s=>s.onchange=()=>{ tmp.map[s.dataset.f] = +s.value; draw(); });
+    $('#fOk').disabled = !res.list.length; tmp.res = res;
+  };
+  openDlg('患者家族マスタの読み込み', '', `<span class="grow"></span><button id="fCancel">キャンセル</button><button class="primary" id="fOk">この内容で読み込む</button>`, 'min(980px,96vw)');
+  $('#fCancel').onclick = () => dlg.close();
+  $('#fOk').onclick = () => {
+    const list = tmp.res.list;
+    state.family = {list, fileName:file.name, loadedAt:new Date().toLocaleString('ja-JP',{year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'}), edited:false};
+    rebuildMaster();
+    for(const v of VACCINES) for(const e of state.entries[v.id]){ if(!masterMap.has(e.pid)){ const p = familyMap.get(e.pid); if(p) e.snap = {...p}; } }
+    persist(); renderAll(); dlg.close();
+    toast(`患者家族マスタを読み込みました（${list.length.toLocaleString()}名）`);
+  };
+  draw();
+}
+
+/* ================= 予診票発送一覧（仙台市／仙台市以外） ================= */
+function sendListHtml(date, scope, city, pageBreak){
+  const base = baseDate(), vs = scope==='all' ? VACCINES : [VAC[cur]];
+  const byKana = (a,b) => norm(a.p.kana||a.p.name).localeCompare(norm(b.p.kana||b.p.name),'ja') || String(a.e.pid).localeCompare(String(b.e.pid),'ja',{numeric:true});
+  let total = 0, first = true, hasNow = false; const by = new Map();
+  let h = `<div class="pl"><h2>予診票発送一覧　${date===NODATE?'発送日が未定の方':'発送日 '+esc(fmtJ(date))}</h2><div class="sub">${esc(state.settings.fy)}　並び順：個人宅（かな順）→ 施設ごと（施設名順・施設内はかな順）<br>年齢は<b>接種日の年齢</b>です（接種日が未入力の方は接種予定日の年齢）。</div>`;
+  for(const v of vs){
+    const rows = state.entries[v.id].filter(e=>(date===NODATE ? !e.send && !e.done : e.send===date) && !e.cancel).map(e=>({e, p:patientOf(e)}));
+    const parts = [['仙台市', rows.filter(r=>!r.e.sel.outside).sort(byKana), 'in'], ['仙台市以外', rows.filter(r=>r.e.sel.outside).sort(byKana), 'out']]
+      .filter(([,l,k])=>l.length && (city==='both' || city===k));
+    if(!parts.length) continue;
+    parts.forEach(([label, list], i)=>{
+      total += list.length; by.set(v.label, (by.get(v.label)||0) + list.length);
+      h += `<h3 class="vt${pageBreak && !first ? ' pb' : ''}">${esc(v.label)}　${esc(label)}（${list.length}名）</h3>
+        <table><thead><tr><th style="width:30px">No</th><th style="width:200px">患者名</th><th style="width:60px">年齢<br>(接種日)</th><th>住所</th></tr></thead><tbody>
+        ${(() => {
+          // 個人宅（かな順）→ 施設ごと（施設名順・施設内はかな順）
+          const home = list.filter(r=>!r.p.gh), gm = new Map();
+          list.filter(r=>r.p.gh).forEach(r=>{ if(!gm.has(r.p.gh)) gm.set(r.p.gh, []); gm.get(r.p.gh).push(r); });
+          const secs = [];
+          if(home.length) secs.push([gm.size ? '個人宅' : '', home]);
+          [...gm.keys()].sort((a,b)=>a.localeCompare(b,'ja')).forEach(g=>secs.push([g, gm.get(g)]));
+          let n = 0;
+          return secs.map(([g, rs])=>(g ? `<tr class="grp"><td colspan="4">${esc(g)}（${rs.length}名）</td></tr>` : '') + rs.map(({e,p})=>{ const va = vacAge(e, p, base), a = va.age; if(va.basis==='now' && a != null) hasNow = true;
+            return `<tr><td class="c">${++n}</td><td><b>${esc(p.name||'')}</b>${p.kana?`<span class="kn">${esc(p.kana)}</span>`:''}</td><td class="c">${a ?? ''}${va.basis==='now' && a != null ? '*' : ''}</td><td>${esc(p.addr||'')}</td></tr>`; }).join('')).join('');
+        })()}</tbody></table>`;
+      first = false;
+    });
+  }
+  return total ? h + `<div class="total">合計 ${total} 名${scope==='all'&&by.size>1?`（${esc([...by].map(([k,n])=>`${k} ${n}名`).join('／'))}）`:''}</div>${hasNow?'<div class="sub">* 接種日・接種予定日が未入力のため、現在の年齢です。</div>':''}</div>` : h + `<div class="none">${date===NODATE?'発送日が未定の方はいません。':'この発送日の対象者はいません。'}</div></div>`;
+}
+function openSendList(){
+  const sd = new Map();
+  VACCINES.forEach(v=>state.entries[v.id].forEach(e=>{ if(e.send && !e.cancel) sd.set(e.send, (sd.get(e.send)||0)+1); }));
+  const dates = [...sd.keys()].sort(), t = todayStr(), fut = dates.filter(d=>d>=t);
+  const noN = VACCINES.reduce((a,v)=>a + state.entries[v.id].filter(e=>!e.send && !e.done && !e.cancel).length, 0);
+  let date = fut[0] || dates[dates.length-1] || t, scope = 'cur', city = 'both', pb = true;
+  const calCounts = () => { const m = new Map(); (scope==='all' ? VACCINES : [VAC[cur]]).forEach(v=>state.entries[v.id].forEach(e=>{ if(e.send && !e.cancel){ const o = m.get(e.send) || {}; o[v.id] = (o[v.id]||0)+1; m.set(e.send, o); } })); return m; };
+  openDlg('予診票発送一覧', `
+    <div class="toolbar" style="margin-bottom:6px">
+      <label>予診票発送日 <input type="date" id="slDate" value="${date}"></label><button type="button" id="slCal" title="発送日のある日と人数をカレンダーで見る">📅 カレンダー</button><button type="button" id="slNone" title="予診票発送日が未入力（接種前）の方の一覧（印刷もできます）">発送日が未定の方（全ワクチン計 ${noN}）</button>
+      <label><input type="checkbox" id="slAll"> すべてのワクチン</label>
+    </div>
+    <div class="toolbar" style="margin-bottom:6px">
+      <label><input type="radio" name="slCity" value="both" checked> 仙台市・仙台市以外（両方）</label>
+      <label><input type="radio" name="slCity" value="in"> 仙台市のみ</label>
+      <label><input type="radio" name="slCity" value="out"> 仙台市以外のみ</label>
+      <label><input type="checkbox" id="slPb" checked> 区分ごとに改ページ</label>
+    </div>
+    <div id="slBody" style="border:1px solid var(--line);border-radius:6px;padding:12px;background:#fff"></div>`,
+    `<span class="grow"></span><button id="slClose">閉じる</button><button class="primary" id="slPrint">印刷する</button>`, 'min(900px,96vw)');
+  const draw = () => { $('#slBody').innerHTML = sendListHtml(date, scope, city, pb); };
+  $('#slDate').onchange = ev => { date = ev.target.value || t; draw(); };
+  $('#slAll').onchange = ev => { scope = ev.target.checked ? 'all' : 'cur'; draw(); };
+  $$('#dlgBody input[name=slCity]').forEach(r=>r.onchange=()=>{ city = r.value; draw(); });
+  $('#slPb').onchange = ev => { pb = ev.target.checked; draw(); };
+  $('#slNone').onclick = () => { date = NODATE; draw(); };
+  $('#slCal').onclick =ev => { ev.stopPropagation(); openCalPopup(ev.currentTarget, calCounts(), date, d => { date = d; $('#slDate').value = d; draw(); }, ['予診票発送日カレンダー', scope==='all' ? 'すべてのワクチン' : VAC[cur].label, scope==='all']); };
+  $('#slClose').onclick = () => dlg.close();
+  $('#slPrint').onclick = () => { $('#printArea').innerHTML = sendListHtml(date, scope, city, pb); window.print(); };
+  draw();
+}
+
+/* ================= 接種日当日の完了入力 ================= */
+function openDayDone(){
+  let date = todayStr(), onlyCur = false;
+  openDlg('接種完了の入力', `
+    <div class="toolbar" style="margin-bottom:6px">
+      <label>接種日 <input type="date" id="ddDate" value="${date}"></label>
+      <label><input type="checkbox" id="ddCur"> ${esc(VAC[cur].label)}のみ表示</label>
+      <button class="small" id="ddAll">未接種を全員選択</button><button class="small" id="ddNone">選択解除</button>
+    </div>
+    <div class="hint" style="margin-bottom:6px">接種予定日がこの日の方を表示しています（キャンセルした方は除く）。接種が終わった方にチェックを入れて「接種完了にする」を押すと、接種日が入ります。年齢は、この接種日の年齢です。</div>
+    <div id="ddBody"></div>`,
+    `<span class="grow"></span><button id="ddClose">閉じる</button><button class="primary" id="ddOk" disabled>接種完了にする</button>`, 'min(960px,96vw)');
+  const draw = () => {
+    const keep = new Set($$('#ddBody input.dd:checked').map(c=>c.value));
+    const vs = onlyCur ? [VAC[cur]] : VACCINES, base = baseDate(); let n = 0, h = '';
+    for(const v of vs){
+      const {rows, groups} = dayGroups(v, date); if(!rows.length) continue; n += rows.length;
+      h += `<h3 class="vt" style="font-size:15px;margin:12px 0 4px;padding:3px 8px;background:#e9eef3">${esc(v.label)}（${rows.length}名）</h3>`;
+      groups.forEach(([gname, list])=>{
+        h += `<h4 style="font-size:14px;margin:8px 0 2px;padding:2px 6px;border-left:4px solid var(--accent)">${esc(gname)}（${list.length}名）</h4><div class="bulklist" style="max-height:none">` +
+          list.map(({e,p})=>{ const a = ageAt(p.birth, e.done || date), done = !!e.done;
+            return `<label class="${done?'dis':''}" style="grid-template-columns:24px 80px 1fr 60px 150px"><input type="checkbox" class="dd" value="${v.id}|${e.id}" ${done?'disabled':(keep.has(v.id+'|'+e.id)?'checked':'')}>
+              <span>${esc(e.pid)}</span><span><span class="nm">${esc(p.name||'')}</span><span class="kana">${esc(p.kana||'')}</span></span>
+              <span>${a ?? ''}${a!=null?'歳':''}</span><span>${done?`<span class="done">接種済 ${fmtD(e.done)}</span>`:esc(radioText(v,e))}</span></label>`; }).join('') + '</div>';
+      });
+    }
+    $('#ddBody').innerHTML = n ? h : `<div class="empty" style="padding:30px">${esc(fmtJ(date))}に接種予定の方はいません。</div>`;
+    upd();
+  };
+  const upd = () => { const k = $$('#ddBody input.dd:checked').length; $('#ddOk').disabled = !k; $('#ddOk').textContent = k ? `${k}名を接種完了にする` : '接種完了にする'; };
+  $('#ddBody').onchange = upd;
+  $('#ddDate').onchange = ev => { date = ev.target.value || todayStr(); draw(); };
+  $('#ddCur').onchange = ev => { onlyCur = ev.target.checked; draw(); };
+  $('#ddAll').onclick = () => { $$('#ddBody input.dd:not(:disabled)').forEach(c=>c.checked=true); upd(); };
+  $('#ddNone').onclick = () => { $$('#ddBody input.dd').forEach(c=>c.checked=false); upd(); };
+  $('#ddClose').onclick = () => dlg.close();
+  $('#ddOk').onclick = () => {
+    const targets = $$('#ddBody input.dd:checked').map(c=>{ const [vid, id] = c.value.split('|'); return state.entries[vid].find(e=>e.id===id); }).filter(Boolean);
+    targets.forEach(e=>e.done = date); persist(); renderAll(); dlg.close();
+    toast(`${targets.length}名を接種完了にしました（接種日 ${fmtD(date)}）`, '元に戻す', ()=>{ targets.forEach(e=>e.done=''); persist(); renderAll(); });
+  };
+  draw();
+}
+
+/* ================= イベント ================= */
+$('#btnPlanList').onclick = openPlanList;
+$('#btnDayDone').onclick = openDayDone;
+$('#btnSendList').onclick = openSendList;
+$('#btnDateSel').onclick = openBulkDate;
+// ブラウザやタブを閉じるとき、バックアップしていない変更があれば警告する
+window.addEventListener('beforeunload', ev => { if(state.dirty){ ev.preventDefault(); ev.returnValue = ''; return ''; } });
+$('#tabs').onclick = ev => { const b = ev.target.closest('button[data-v]'); if(!b) return; cur = b.dataset.v; try{ localStorage.setItem(KEY+'.tab', cur); }catch(e){} $('#q').value=''; $('#fGh').value=''; selIds.clear(); renderTabs(); renderList(); };
+$('#btnNew').onclick = () => { if(!state.master.list.length && !confirm('患者マスタが未読込です。手入力で登録しますか？')) return; openEntry(null); };
+['q','fStatus','fGh','fSort'].forEach(id=>$('#'+id).addEventListener('input', renderList));
+function setCancel(e, on){
+  e.cancel = on; if(!on) delete e.cancel;
+  persist(); renderAll();
+  const nm = patientOf(e).name || e.pid;
+  toast(on ? `${nm} さんの接種予定をキャンセルしました` : `${nm} さんのキャンセルを取り消しました`, '元に戻す', ()=>setCancel(e, !on));
+}
+$('#thead').onclick = ev => {
+  if(ev.target.id !== 'chkAll') return;
+  const ids = $$('#tbody tr[data-id]').map(tr=>tr.dataset.id);
+  ids.forEach(id=>{ if(ev.target.checked) selIds.add(id); else selIds.delete(id); });
+  $$('#tbody .rowchk').forEach(c=>c.checked = ev.target.checked); updDelBtn();
+};
+$('#btnDelSel').onclick = () => {
+  const list = state.entries[cur], targets = list.map((e,i)=>({e,i})).filter(x=>selIds.has(x.e.id));
+  if(!targets.length) return;
+  const names = targets.slice(0,5).map(x=>patientOf(x.e).name||x.e.pid).join('、') + (targets.length>5?` ほか${targets.length-5}名`:'');
+  if(!confirm(`${VAC[cur].label}の登録 ${targets.length}件を削除します。\n（${names}）\nよろしいですか？`)) return;
+  state.entries[cur] = list.filter(e=>!selIds.has(e.id));
+  selIds.clear(); persist(); renderAll();
+  toast(`${targets.length}件を削除しました`, '元に戻す', ()=>{ state.entries[cur] = list; persist(); renderAll(); });
+};
+$('#tbody').onclick = ev => {
+  const tr = ev.target.closest('tr[data-id]'); if(!tr) return;
+  if(ev.target.closest('.chk')){
+    if(ev.target.classList.contains('rowchk')){ if(ev.target.checked) selIds.add(tr.dataset.id); else selIds.delete(tr.dataset.id);
+      const ids = $$('#tbody tr[data-id]').map(t=>t.dataset.id), ca = $('#chkAll'); if(ca) ca.checked = ids.every(id=>selIds.has(id)); updDelBtn(); }
+    return;
+  }
+  const e = state.entries[cur].find(x=>x.id===tr.dataset.id); if(!e) return;
+  if(ev.target.closest('.qcancel')){
+    if(e.cancel) setCancel(e, false);
+    else if(confirm(`${patientOf(e).name||e.pid} さんの接種予定をキャンセルしますか？\n（一覧には「キャンセル」として残ります）`)) setCancel(e, true);
+    return;
+  }
+  if(ev.target.closest('.qdone')){
+    e.done = todayStr(); persist(); renderAll();
+    toast(`${patientOf(e).name||e.pid} さんを本日接種済にしました`, '元に戻す', ()=>{ e.done=''; persist(); renderAll(); });
+    return;
+  }
+  openEntry(e);
+};
+$('#btnMaster').onclick = () => $('#fileMaster').click();
+$('#btnMasterView').onclick = openMasterView;
+$('#btnFamily').onclick = openFamilyView;
+$('#fileFamily').onchange = ev => { const f = ev.target.files[0]; ev.target.value=''; if(f) onFamilyFile(f); };
+$('#btnImport').onclick = () => $('#fileImport').click();
+$('#btnRestore').onclick = () => openRestore();
+$('#btnExit').onclick = openExit;
+$('#fileMaster').onchange = ev => { const f = ev.target.files[0]; ev.target.value=''; if(f) onMasterFile(f); };
+$('#fileImport').onchange = ev => { const f = ev.target.files[0]; ev.target.value=''; if(f) onImportFile(f); };
+$('#fileRestore').onchange = ev => { const f = ev.target.files[0]; ev.target.value=''; if(f) onRestoreFile(f); };
+$('#btnExport').onclick = () => {
+  const n = VACCINES.reduce((a,v)=>a + state.entries[v.id].length, 0);
+  if(!n && !confirm('登録がありません。空の管理票を出力しますか？')) return;
+  download(buildWorkbook(), `ワクチン管理票_${state.settings.fy}_${nowStamp()}.xlsx`);
+  toast('Excelファイルを出力しました');
+};
+$('#btnBackup').onclick = doBackup;
+$('#btnSettings').onclick = openSettings;
+window.addEventListener('storage', ev => { if(ev.key === KEY){ load(); renderAll(); } });
+
+load(); renderAll();
+// データが残っていない（初回・ブラウザ内データ削除後）ときは、復元のポップアップを出す
+if(!hasData()) setTimeout(() => openRestore('保存されているデータがありません。バックアップから復元しますか？<br>初めて使う場合は、「復元せずに始める」を押して、患者マスタを読み込んでください。'), 300);
+</script>
+<!-- まとめ版のタブの中で開いたときに、バックアップ保存先フォルダを使えるようにする（単独で開いたときは何もしません） -->
+<script src="portal-fs-bridge.js"></script>
 </body>
 </html>

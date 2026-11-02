@@ -103,6 +103,68 @@ nav button:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
     try { frames[app.id].contentWindow.focus(); } catch(e) {}
   }
 
+  // ---- タブの中のアプリに代わってフォルダを操作する（apps/vaccine/portal-fs-bridge.js から呼ばれる） ----
+  // パソコン内のファイルとして開くと、Chrome / Edge はタブの中からのフォルダ選択を禁止しているため。
+  function idb(cfg, mode, fn){
+    return new Promise(function(res, rej){
+      var r = indexedDB.open(cfg.db, 1);
+      r.onupgradeneeded = function(){ r.result.createObjectStore(cfg.store); };
+      r.onerror = function(){ rej(r.error); };
+      r.onsuccess = function(){
+        var db = r.result, t = db.transaction(cfg.store, mode), q = fn(t.objectStore(cfg.store));
+        t.oncomplete = function(){ db.close(); res(q && q.result); };
+        t.onerror = function(){ db.close(); rej(t.error); };
+      };
+    });
+  }
+  async function savedDir(cfg){
+    var h = await idb(cfg, 'readonly', function(s){ return s.get(cfg.key); });
+    if (!h || h.kind !== 'directory') { var e = new Error('保存先フォルダが設定されていません'); e.name = 'NotFoundError'; throw e; }
+    return h;
+  }
+  var FS_OPS = {
+    hello: function(){ return true; },
+    status: async function(a, cfg){ try { return { name: (await savedDir(cfg)).name }; } catch(e){ return null; } },
+    pick: async function(a, cfg){
+      var h = await window.showDirectoryPicker({ id: cfg.pickerId, mode: 'readwrite' });
+      await idb(cfg, 'readwrite', function(s){ return s.put(h, cfg.key); });
+      return { name: h.name };
+    },
+    perm: async function(a, cfg){
+      var h = await savedDir(cfg), o = { mode: 'readwrite' };
+      var st = await h.queryPermission(o);
+      if (st !== 'granted' && a.request) st = await h.requestPermission(o);
+      return st;
+    },
+    write: async function(a, cfg){
+      var fh = await (await savedDir(cfg)).getFileHandle(String(a.name), { create: true });
+      var w = await fh.createWritable(); await w.write(a.data); await w.close();
+      return true;
+    },
+    list: async function(a, cfg){
+      var out = [];
+      for await (var ent of (await savedDir(cfg)).entries()) {
+        var x = { name: ent[0], kind: ent[1].kind };
+        if (x.kind === 'file') { var f = await ent[1].getFile(); x.lastModified = f.lastModified; x.size = f.size; }
+        out.push(x);
+      }
+      return out;
+    },
+    read: async function(a, cfg){
+      return (await (await (await savedDir(cfg)).getFileHandle(String(a.name))).getFile()).text();
+    }
+  };
+  window.addEventListener('message', async function(e){
+    var d = e.data;
+    if (!d || d.portalFs !== 1 || !FS_OPS.hasOwnProperty(d.op) || !d.cfg) return;
+    // 自分のタブの中のアプリからの依頼だけ受け付ける
+    if (!Object.keys(frames).some(function(k){ return frames[k].contentWindow === e.source; })) return;
+    var msg;
+    try { msg = { portalFs: 1, id: d.id, ok: true, v: await FS_OPS[d.op](d.args || {}, d.cfg) }; }
+    catch(err){ msg = { portalFs: 1, id: d.id, ok: false, v: { name: err && err.name, message: err && err.message } }; }
+    e.source.postMessage(msg, '*');
+  });
+
   window.addEventListener('hashchange', function(){ show(location.hash.slice(1)); });
 
   var first = location.hash.slice(1);
