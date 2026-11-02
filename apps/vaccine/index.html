@@ -1173,6 +1173,15 @@ function isExcludedPatient(id, name){
   const n = s => String(s == null ? '' : s).normalize('NFKC').toUpperCase();
   return n(id).includes('WA') || /[\[【(]\s*亘\s*[\]】)]/.test(n(name));
 }
+// 住所にこの名前が含まれていたら、グループホーム欄が空でもそのグループホームの患者として扱う。
+// 増やすときは、この一覧に名前を追加する（空白・全角半角の違いは無視して探します）
+const GH_NAMES_IN_ADDRESS = ['おひさまの家'];
+const GH_MARKS = ['○', '◯', '〇', '●', '◎', '1', '有', 'あり', 'はい', '該当', '入居', 'gh', 'グループホーム', '✓', '✔', 'レ', 'y', 'yes'];
+function ghFromAddress(...addrs){
+  const n = s => String(s == null ? '' : s).normalize('NFKC').replace(/\s+/g, '');
+  for(const a of addrs.map(n)) if(a){ const g = GH_NAMES_IN_ADDRESS.find(x => a.includes(n(x))); if(g) return g; }
+  return '';
+}
 function buildPatients(rows, hr, map){
   const out = new Map(); let bad = 0, noBirth = 0, excluded = 0;
   for(let r = hr + 1; r < rows.length; r++){
@@ -1180,6 +1189,8 @@ function buildPatients(rows, hr, map){
     const id = toIdStr(g('id'));
     if(!id){ continue; }
     const p = {id, name:strVal(g('name')), kana:strVal(g('kana')), birth:parseDate(g('birth')), addr:strVal(g('jaddr')) || strVal(g('addr')), gh:strVal(g('gh'))};
+    // 施設名が空欄、または「○」などの印だけのときは、住所に含まれるグループホーム名を使う
+    if(!p.gh || GH_MARKS.includes(p.gh.toLowerCase())) p.gh = ghFromAddress(g('addr'), g('jaddr')) || p.gh;
     if(!p.name && !p.kana){ bad++; continue; }
     if(isExcludedPatient(id, p.name)){ excluded++; continue; }
     if(!p.birth) noBirth++;
