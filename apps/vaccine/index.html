@@ -247,12 +247,12 @@ input.bad{border-color:var(--danger);background:#fdf1f0;outline:2px solid #f0b4a
     <input type="search" id="q" placeholder="氏名・ふりがな・IDで絞り込み">
     <select id="fStatus">
       <option value="">すべて</option>
-      <option value="todo">未接種（キャンセル除く）</option>
-      <option value="done">接種済</option>
-      <option value="today">本日接種予定</option>
-      <option value="cancel">キャンセル</option>
       <option value="overdue">予定日を過ぎた未接種</option>
+      <option value="todo">未接種（キャンセル除く）</option>
       <option value="noplan">接種予定日が未定（未入力）</option>
+      <option value="checked">チェックマーク患者</option>
+      <option value="done">接種済</option>
+      <option value="cancel">キャンセル</option>
     </select>
     <select id="fGh"></select>
     <select id="fSort">
@@ -550,7 +550,8 @@ function renderList(){
   if(q) rows = rows.filter(r=>norm([r.e.pid, r.p.name, r.p.kana, r.e.memo].join(' ')).includes(q));
   if(st==='todo') rows = rows.filter(r=>!r.e.done && !r.e.cancel);
   if(st==='done') rows = rows.filter(r=>r.e.done);
-  if(st==='today') rows = rows.filter(r=>r.e.plan===todayStr() && !r.e.cancel);
+  // 一覧の左端でチェックを付けた方だけ（チェックを外しても、次に絞り込み直すまでは表示したまま）
+  if(st==='checked') rows = rows.filter(r=>selIds.has(r.e.id));
   if(st==='cancel') rows = rows.filter(r=>r.e.cancel);
   if(st==='overdue') rows = rows.filter(r=>overdueDays(r.e) > 0);
   if(st==='noplan') rows = rows.filter(r=>isNoPlan(r.e));
@@ -589,7 +590,7 @@ function renderList(){
   const doneN = all.filter(e=>e.done && !e.cancel).length, cancelN = all.filter(e=>e.cancel).length, overN = all.filter(e=>overdueDays(e)>0).length, noPlanN = all.filter(isNoPlan).length;
   $('#summary').innerHTML = `登録 <b>${all.length}</b> 件　接種済 <b>${doneN}</b>　未接種 <b>${all.length-doneN-cancelN}</b>${overN||noPlanN?`（${overN?`<span style="color:var(--danger);font-weight:700">予定超過 ${overN}</span>`:''}${overN&&noPlanN?'・':''}${noPlanN?`<span style="color:var(--warn);font-weight:700">予定日未定 ${noPlanN}</span>`:''}）`:''}${cancelN?`　キャンセル <b>${cancelN}</b>`:''}${rows.length!==all.length?`　（表示 ${rows.length} 件）`:''}`;
   updDelBtn();
-  $('#empty').innerHTML = all.length ? (rows.length ? '' : '条件に合う登録はありません。') :
+  $('#empty').innerHTML = all.length ? (rows.length ? '' : (st==='checked' && !selIds.size ? 'チェックを付けた方がいません。「すべて」などで一覧を表示し、左端のチェックを付けてから選んでください。' : '条件に合う登録はありません。')) :
     (state.master.list.length ? `まだ登録がありません。「＋ 新規登録」または「施設一括登録」から登録してください。` : `はじめに右上の「患者マスタ読込」から、患者マスタのExcelファイルを読み込んでください。`);
 }
 
