@@ -1,0 +1,1189 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>タイム計測</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=BIZ+UDGothic:wght@400;700&family=BIZ+UDPGothic:wght@400;700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<style>
+  /* 紙のブルベカード ＋ 判子インクの紺 ＋ 反射ベストの黄 */
+  :root{
+    --page:#E9EDF1;      /* 机の上 */
+    --paper:#FFFFFF;     /* カード */
+    --ink:#18212C;       /* 本文 */
+    --sub:#5A6675;       /* 補足 */
+    --rule:#D3DAE2;      /* 罫線 */
+    --stamp:#1F3F99;     /* 判子インク：主ボタン・情報 */
+    --stamp-soft:#E6ECF8;
+    --vest:#FFD400;      /* 反射ベスト：今記録した行・メダル */
+    --vest-soft:#FFF4B8;
+    --warn:#9A5300;
+    --err:#C0281F;
+    --err-soft:#FDECEA;
+    --ok:#1F3F99;
+    --font:"BIZ UDPGothic", "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Yu Gothic UI", Meiryo, system-ui, sans-serif;
+    --num:"BIZ UDGothic", "BIZ UDPGothic", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+    --tap:48px;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0}
+  body{
+    background:var(--page); color:var(--ink); font-family:var(--font);
+    font-size:15px; line-height:1.55; -webkit-text-size-adjust:100%;
+    padding:0 max(12px,env(safe-area-inset-right)) 24px max(12px,env(safe-area-inset-left));
+  }
+  button,input,select,textarea{font-family:inherit;font-size:inherit;color:inherit}
+  .num,.t{font-family:var(--num);font-variant-numeric:tabular-nums}
+  .wrap{max-width:1180px;margin:0 auto}
+  .hidden{display:none !important}
+
+  /* ---- 上部バー（大会名・タブ・現在時刻を1行に） ---- */
+  header{
+    position:sticky;top:0;z-index:5;background:var(--page);
+    display:flex;align-items:center;gap:12px;padding:8px 0;
+  }
+  .brand{font-size:18px;font-weight:700;line-height:1.3;min-width:0;flex:1;
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .brand:empty::before{content:"タイム計測";color:var(--sub)}
+  nav{display:flex;background:#DCE2E8;border-radius:10px;padding:3px;gap:3px;flex:none}
+  nav button{
+    appearance:none;border:0;background:transparent;color:var(--sub);
+    font-weight:700;min-height:40px;padding:0 20px;border-radius:8px;cursor:pointer;
+  }
+  nav button[aria-selected="true"]{background:var(--paper);color:var(--ink);box-shadow:0 1px 2px rgba(24,33,44,.18)}
+  .now{flex:none;text-align:right;font-size:13px;color:var(--sub);line-height:1.2}
+  .now b{display:block;font-family:var(--num);font-size:18px;color:var(--ink);font-weight:700}
+
+  :focus-visible{outline:3px solid var(--stamp);outline-offset:2px}
+
+  /* ---- 面 ---- */
+  .panel{background:var(--paper);border:1px solid var(--rule);border-radius:12px;padding:14px 16px}
+  .panel + .panel{margin-top:12px}
+  h2{margin:0 0 10px;font-size:15px;font-weight:700;display:flex;align-items:center;gap:10px}
+  h2 .aside{margin-left:auto;font-weight:400;font-size:13px;color:var(--sub)}
+
+  /* ---- 記録タブ：左に入力、右に直近 ---- */
+  .rec{display:grid;grid-template-columns:minmax(0,1.05fr) minmax(0,1fr);gap:12px;align-items:start}
+
+  .clock{display:flex;align-items:baseline;gap:14px;flex-wrap:wrap;margin:0 0 10px}
+  .clock .val{
+    font-family:var(--num);font-variant-numeric:tabular-nums;font-weight:700;
+    font-size:clamp(44px,7.4vw,84px);line-height:1;letter-spacing:-.01em;
+  }
+  .clock .val .sec{color:var(--stamp)}
+  .clock .sub{font-size:13px;color:var(--sub);line-height:1.4}
+  .clock .sub b{display:block;color:var(--ink);font-weight:700;font-size:14px}
+
+  .entry{display:flex;gap:8px}
+  .entry input{
+    flex:1;min-width:0;height:64px;background:var(--paper);
+    border:2px solid var(--ink);border-radius:10px;padding:0 14px;
+    font-family:var(--num);font-size:32px;font-weight:700;text-align:center;
+  }
+  .entry input::placeholder{color:#A3ADB9;font-family:var(--font);font-weight:400;font-size:22px}
+  .entry .btn.primary{width:34%;max-width:200px;height:64px;font-size:22px}
+
+  .sub-actions{display:flex;gap:8px;margin-top:10px;flex-wrap:wrap}
+  .sub-actions .btn{flex:1 1 0;min-width:0}
+  .sub-actions .spacer{flex:0 0 14px}
+
+  /* ---- ボタン ---- */
+  .btn{
+    appearance:none;display:inline-flex;align-items:center;justify-content:center;gap:6px;
+    min-height:var(--tap);padding:0 16px;border-radius:10px;cursor:pointer;
+    border:1px solid #B9C3CE;background:var(--paper);color:var(--ink);font-weight:700;
+    white-space:nowrap;text-decoration:none;
+  }
+  .btn:hover{background:#F3F6F9}
+  .btn:active{transform:translateY(1px)}
+  .btn.primary{background:var(--stamp);border-color:var(--stamp);color:#fff}
+  .btn.primary:hover{background:#18347F}
+  .btn.quiet{border-color:transparent;background:transparent;color:var(--stamp)}
+  .btn.quiet:hover{background:var(--stamp-soft)}
+  .btn.dns{color:var(--sub)}
+  .btn.dnf,.btn.danger{color:var(--err);border-color:#E5B4B0}
+  .btn.dnf:hover,.btn.danger:hover{background:var(--err-soft)}
+  .btn.sm{min-height:40px;padding:0 12px;font-size:14px}
+  .btn small{font-weight:400;font-size:12px;color:var(--sub)}
+  .btn.dnf small{color:inherit}
+
+  .msg{margin-top:10px;font-size:14px;min-height:22px;color:var(--ok);font-weight:700}
+  .msg:empty{display:none}
+  .msg.warn{color:var(--warn)}
+  .msg.err{color:var(--err)}
+  #recMsg{min-height:0;padding:10px 12px;border-radius:8px;background:var(--stamp-soft)}
+  #recMsg.warn{background:#FFF1DC}
+  #recMsg.err{background:var(--err-soft)}
+
+  .alert{border:2px solid var(--warn);background:#FFF6E6;border-radius:12px;padding:10px 14px;margin-bottom:12px;
+    display:flex;align-items:center;gap:12px;color:var(--warn);font-weight:700}
+
+  /* ---- 表 ---- */
+  table{width:100%;border-collapse:collapse;table-layout:fixed}
+  th{text-align:left;font-size:12px;color:var(--sub);font-weight:700;padding:6px 8px;border-bottom:2px solid var(--rule);white-space:nowrap}
+  td{padding:6px 8px;border-bottom:1px solid #E6EBF0;height:52px;vertical-align:middle;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  td.t{font-weight:700;font-size:17px}
+  td.clk{color:var(--sub);font-size:14px}
+  td.rank{color:var(--sub);text-align:right}
+  td.act{text-align:right;overflow:visible}
+  .c-rank{width:44px}.c-bib{width:76px}.c-clk{width:136px}.c-time{width:104px}.c-medal{width:96px}.c-act{width:76px}.c-pclk{width:92px}
+  .missing{color:var(--warn);font-weight:700}
+  .none{color:#A3ADB9}
+  tr.fresh td{animation:flash 2.4s ease-out}
+  @keyframes flash{0%,30%{background:var(--vest-soft)}100%{background:transparent}}
+  .empty{color:var(--sub);padding:22px 4px;line-height:1.8;white-space:normal;height:auto}
+
+  .tag{display:inline-block;font-family:var(--num);font-size:13px;font-weight:700;padding:3px 8px;border-radius:6px}
+  .tag.dns{background:#EDF0F3;color:var(--sub)}
+  .tag.dnf{background:var(--err-soft);color:var(--err)}
+
+  .medal{min-height:40px;padding:0 10px;font-size:13px;color:var(--sub);border-color:var(--rule)}
+  .medal.on{background:var(--vest);border-color:#D9B400;color:var(--ink)}
+  .medal.on:hover{background:#F2C900}
+
+  #pendingPanel{border:2px solid var(--warn)}
+  #pendingPanel h2{color:var(--warn)}
+  #pendingBody input{width:100%;height:40px;border:1px solid #B9C3CE;border-radius:8px;padding:0 8px;font-family:var(--num);font-size:17px;text-align:center}
+
+  /* ---- 一覧タブ ---- */
+  .toolbar{display:flex;align-items:flex-end;gap:10px;flex-wrap:wrap;margin-bottom:8px}
+  .toolbar .count{font-size:14px;color:var(--sub);margin-right:auto;align-self:center}
+  .toolbar .count b{color:var(--ink);font-size:20px;font-family:var(--num)}
+  .toolbar label{display:flex;flex-direction:column;font-size:12px;color:var(--sub);gap:2px}
+  .exports{display:flex;gap:8px;flex-wrap:wrap;padding-top:10px;margin-top:4px;border-top:1px solid var(--rule)}
+  .exports .btn.primary{flex:0 1 auto}
+
+  /* ---- 入力欄共通 ---- */
+  label.f{display:block;font-size:13px;color:var(--sub);margin:12px 0 4px}
+  input[type=date],input[type=time],input[type=datetime-local],select,input.txt{
+    background:var(--paper);border:1px solid #B9C3CE;border-radius:8px;
+    min-height:44px;padding:0 10px;font-family:var(--num);font-size:16px;width:100%
+  }
+  select{font-family:var(--font);font-size:15px}
+  .toolbar select{width:auto;min-height:40px}
+  input[type=file]{font-size:14px;max-width:100%}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+  .row{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
+  .hint{font-size:13px;color:var(--sub);line-height:1.75;margin:10px 0 0}
+  .hint ul{margin:4px 0 0;padding-left:1.2em}
+
+  /* ---- 設定タブ：2列 ---- */
+  .settings{display:grid;grid-template-columns:1fr 1fr;gap:12px;align-items:start}
+  .settings .panel + .panel{margin-top:0}
+  .settings .col{display:grid;gap:12px}
+
+  /* ---- ダイアログ ---- */
+  dialog{border:0;background:var(--paper);color:var(--ink);border-radius:14px;padding:18px 20px;width:min(460px,94vw);
+    max-height:94vh;box-shadow:0 12px 40px rgba(24,33,44,.28)}
+  dialog::backdrop{background:rgba(24,33,44,.45)}
+  dialog h3{margin:0 0 4px;font-size:17px}
+  dialog .row{justify-content:space-between;margin-top:18px}
+  dialog .row span{display:flex;gap:8px}
+  textarea{width:100%;height:160px;border:1px solid #B9C3CE;border-radius:8px;padding:10px;font-family:var(--num);font-size:12px}
+
+  /* ---- 縦長・狭い画面 ---- */
+  @media (max-width:760px){
+    .rec,.settings{grid-template-columns:1fr}
+    .c-clk,td.clk{display:none}
+  }
+  @media (max-width:520px){
+    header{flex-wrap:wrap}
+    nav{order:3;width:100%}
+    nav button{flex:1}
+    .c-medal{width:72px}
+    .grid2{grid-template-columns:1fr}
+  }
+  /* スマホ横向き：高さが低いので縦の余白を詰める */
+  @media (max-height:460px) and (orientation:landscape){
+    header{padding:4px 0}
+    nav button{min-height:36px}
+    .panel{padding:10px 12px}
+    .clock{margin-bottom:6px}
+    .clock .val{font-size:clamp(40px,8vh + 2vw,64px)}
+    .entry input,.entry .btn.primary{height:56px}
+    td{height:46px}
+  }
+  @media (prefers-reduced-motion:reduce){tr.fresh td{animation:none;background:var(--vest-soft)}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="brand" id="eventName"></div>
+    <nav role="tablist" aria-label="画面の切り替え">
+      <button role="tab" id="tab-rec" aria-selected="true" onclick="showTab('rec')">記録</button>
+      <button role="tab" id="tab-list" aria-selected="false" onclick="showTab('list')">一覧</button>
+      <button role="tab" id="tab-set" aria-selected="false" onclick="showTab('set')">設定</button>
+    </nav>
+    <div class="now">現在<b id="nowClock">--:--:--</b></div>
+  </header>
+
+  <!-- 記録 -->
+  <section id="pane-rec">
+    <div class="alert" id="abBanner" style="display:none">
+      自動バックアップが止まっています。
+      <button class="btn sm" onclick="abResume()">再開する</button>
+    </div>
+
+    <div class="rec">
+      <div class="panel">
+        <div class="clock">
+          <div class="val" id="elapsed">--:--:--</div>
+          <div class="sub" id="startInfo">スタート時刻が未設定です</div>
+        </div>
+        <div class="entry">
+          <input id="bib" inputmode="numeric" autocomplete="off" placeholder="受付番号" aria-label="受付番号">
+          <button class="btn primary" onclick="recordFinish()">ゴール記録</button>
+        </div>
+        <div class="sub-actions">
+          <button class="btn" onclick="stampOnly()">時刻だけ打刻</button>
+          <span class="spacer" aria-hidden="true"></span>
+          <button class="btn dns" onclick="recordRetire('DNS')">DNS <small>未出走</small></button>
+          <button class="btn dnf" onclick="recordRetire('DNF')">DNF <small>途中棄権</small></button>
+        </div>
+        <div class="msg" id="recMsg"></div>
+      </div>
+
+      <div>
+        <div class="panel" id="pendingCard" style="display:none">
+          <h2 id="pendingPanelTitle">受付番号が未入力の打刻</h2>
+          <table>
+            <colgroup><col class="c-pclk"><col class="c-time"><col><col class="c-act"></colgroup>
+            <tbody id="pendingBody"></tbody>
+          </table>
+        </div>
+        <div class="panel">
+          <h2>直近の記録 <button class="btn quiet sm aside" onclick="showTab('list')" style="margin-left:auto">一覧を開く</button></h2>
+          <table>
+            <colgroup><col class="c-bib"><col><col class="c-time"><col class="c-act"></colgroup>
+            <tbody id="recentBody"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 一覧 -->
+  <section id="pane-list" class="hidden">
+    <div class="panel">
+      <div class="toolbar">
+        <div class="count" id="countPill">ゴール <b>0</b> 名</div>
+        <label for="sortSel">並び順
+          <select id="sortSel" onchange="renderList()">
+            <option value="time">タイム順（順位）</option>
+            <option value="recent">記録が新しい順</option>
+            <option value="bib">受付番号順</option>
+          </select>
+        </label>
+        <label for="fmtSel">Excelの走行時間
+          <select id="fmtSel" onchange="setFmt()">
+            <option value="hm">時:分（9:54）</option>
+            <option value="hms">時:分:秒（9:54:07）</option>
+          </select>
+        </label>
+      </div>
+      <div class="exports">
+        <button class="btn primary sm" onclick="exportXlsx()">Excelで書き出す</button>
+        <button class="btn sm" onclick="exportCsv()">CSVで書き出す</button>
+        <button class="btn quiet sm" onclick="openEdit(null)" style="margin-left:auto">＋ 手入力で追加</button>
+      </div>
+      <table style="margin-top:6px">
+        <colgroup><col class="c-rank"><col class="c-bib"><col><col class="c-clk"><col class="c-time"><col class="c-medal"><col class="c-act"></colgroup>
+        <thead><tr>
+          <th style="text-align:right">順位</th><th>番号</th><th>氏名</th>
+          <th class="c-clk">ゴール時刻</th><th>タイム</th><th>メダル</th><th></th>
+        </tr></thead>
+        <tbody id="listBody"></tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- 設定 -->
+  <section id="pane-set" class="hidden">
+    <div class="settings">
+      <div class="col">
+        <div class="panel">
+          <h2>スタート時刻（全員共通）</h2>
+          <div class="grid2">
+            <div><label class="f" for="sDate">日付</label><input type="date" id="sDate"></div>
+            <div><label class="f" for="sTime">時刻（秒まで）</label><input type="time" id="sTime" step="1"></div>
+          </div>
+          <div class="row">
+            <button class="btn primary" onclick="saveStart()">スタート時刻を保存</button>
+            <button class="btn quiet" onclick="setStartNow()">今の時刻を入れる</button>
+          </div>
+          <p class="hint">ゴールの実時刻は残っているので、スタート時刻を直すと全員のタイムが計算し直されます。</p>
+          <div class="msg" id="setMsg"></div>
+        </div>
+
+        <div class="panel">
+          <h2>出場者名簿（Excel / CSV）</h2>
+          <input type="file" id="rosterFile" accept=".xlsx,.xlsm,.xls,.csv" onchange="importRoster(event)">
+          <div id="rosterInfo" class="hint"></div>
+          <div class="msg" id="rosterMsg"></div>
+          <div class="hint">
+            <ul>
+              <li>1行目の見出しから、受付番号の列（受付番号／ナンバー／No／番号／ゼッケン）と氏名の列（氏名／名前／Name）を探します。見つからないときはA列を受付番号、B列を氏名として読みます。</li>
+              <li>取り込むと名簿は置き換わります。記録済みのタイムは消えません。</li>
+              <li>.xlsx で取り込むと、Excel書き出しのときに元のレイアウトのまま「走行時間／メダル／認定番号」の列を右側に足します。</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+
+      <div class="col">
+        <div class="panel">
+          <h2>自動バックアップ（パソコンの Chrome / Edge）</h2>
+          <p class="hint" id="abState" style="margin-top:0"></p>
+          <div class="row">
+            <button class="btn" id="abChoose" onclick="abChoose()">保存先ファイルを選ぶ</button>
+            <button class="btn" id="abResume" onclick="abResume()" style="display:none">自動バックアップを再開</button>
+            <button class="btn quiet" id="abStop" onclick="abStop()" style="display:none">停止</button>
+          </div>
+          <div class="msg" id="abMsg"></div>
+          <p class="hint">選んだファイルに、記録や設定を変えるたび自動で上書き保存します。Dropbox や OneDrive の同期フォルダに置けば、パソコンが壊れても別の場所に残ります。ブラウザを開き直したあとは確認が出るので「再開」を押してください。</p>
+        </div>
+
+        <div class="panel">
+          <h2>データ</h2>
+          <p class="hint" id="storeState" style="margin-top:0">保存先を確認しています…</p>
+          <div class="row">
+            <button class="btn" onclick="backupSave()">バックアップを保存</button>
+            <label class="btn">バックアップから復元
+              <input type="file" id="backupFile" accept=".json" onchange="backupLoad(event)" class="hidden">
+            </label>
+            <button class="btn danger" id="wipeBtn" onclick="wipe()" style="margin-left:auto">全データを削除</button>
+          </div>
+          <p class="hint">バックアップにはスタート時刻・名簿・全記録が入っています。別の端末でも、復元すれば続きから使えます。</p>
+          <div class="msg" id="backupMsg"></div>
+        </div>
+      </div>
+    </div>
+  </section>
+</div>
+
+<dialog id="editDlg">
+  <h3 id="editTitle">記録を編集</h3>
+  <label class="f" for="eBib">受付番号</label>
+  <input class="txt" id="eBib" inputmode="numeric">
+  <label class="f" for="eSt">結果</label>
+  <select id="eSt" onchange="syncEditSt()">
+    <option value="FIN">ゴール（タイムあり）</option>
+    <option value="DNF">DNF 途中棄権</option>
+    <option value="DNS">DNS 未出走</option>
+  </select>
+  <div id="eTimeWrap">
+    <label class="f" for="eTime">ゴール日時</label>
+    <input type="datetime-local" id="eTime" step="1">
+  </div>
+  <div class="row">
+    <button class="btn danger sm" id="eDel" onclick="deleteEditing()">この記録を削除</button>
+    <span>
+      <button class="btn quiet sm" onclick="editDlg.close()">やめる</button>
+      <button class="btn primary sm" onclick="saveEdit()">保存</button>
+    </span>
+  </div>
+</dialog>
+
+<dialog id="csvDlg">
+  <h3>CSV</h3>
+  <p class="hint">ダウンロードが始まらないときは、下のテキストをコピーして使ってください。</p>
+  <textarea id="csvText" readonly></textarea>
+  <div class="row" style="justify-content:flex-end">
+    <button class="btn sm" onclick="csvDlg.close()">閉じる</button>
+  </div>
+</dialog>
+
+<dialog id="saveDlg">
+  <h3>Excelへの貼り付け用</h3>
+  <p class="hint">この画面ではブラウザの制限でファイルが保存されないことがあります。保存されなかったときは、下の表をコピーしてExcelの名簿に貼り付けてください（受付番号・氏名・走行時間・メダルの順）。</p>
+  <textarea id="saveText" readonly></textarea>
+  <div class="msg" id="saveMsg"></div>
+  <p class="hint">確実にファイルで保存するには、このHTMLファイルをダウンロードして Chrome / Edge で開いてください。</p>
+  <div class="row" style="justify-content:flex-end">
+    <span>
+      <button class="btn quiet sm" onclick="document.getElementById('saveDlg').close()">閉じる</button>
+      <button class="btn primary sm" onclick="copySave()">コピー</button>
+    </span>
+  </div>
+</dialog>
+
+<script>
+/* ---------- state ---------- */
+const KEY = "race-timer-v1";
+let state = { start:null, roster:{}, finishes:[], rosterFile:null, eventName:"", opt:{sec:false} };  // finishes: {id, bib, t}
+let saveTimer = null, editingId = null, freshId = null;
+let hasCloud = false;
+const hasLocal = (()=>{ try{ localStorage.setItem("__t","1"); localStorage.removeItem("__t"); return true; }catch(e){ return false; } })();
+
+const $ = id => document.getElementById(id);
+const pad = (n,w=2) => String(n).padStart(w,"0");
+
+async function load(){
+  let raw = null;
+  if(typeof window.storage !== "undefined" && window.storage){
+    hasCloud = true;
+    try{ const r = await window.storage.get(KEY); if(r && r.value) raw = r.value; }catch(e){}
+  }
+  if(raw == null && hasLocal){ raw = localStorage.getItem(KEY); }
+  if(raw){ try{ state = Object.assign(state, JSON.parse(raw)); }catch(e){} }
+  state.opt = Object.assign({sec:false}, state.opt||{});
+  $("fmtSel").value = state.opt.sec ? "hms" : "hm";
+
+  $("storeState").innerHTML = (hasCloud || hasLocal)
+    ? "記録はこの端末のこのブラウザに保存されます。画面を閉じても残ります。<br><span style='color:var(--warn)'>大会当日は念のため、休憩ごとにバックアップを保存しておくと安心です。</span>"
+    : "このブラウザでは保存できません（プライベートモードなどの可能性）。画面を閉じると記録は消えます。通常のウィンドウで開き直してください。";
+  syncSettingsFields();
+  renderAll();
+}
+let pendingSave = false;
+function flushSave(){                          // 保存待ちの内容を今すぐ書き込む
+  if(!pendingSave) return;
+  pendingSave = false; clearTimeout(saveTimer);
+  const json = JSON.stringify(state);
+  if(hasLocal){ try{ localStorage.setItem(KEY, json); }catch(e){} }
+  if(hasCloud){ try{ Promise.resolve(window.storage.set(KEY, json)).catch(()=>{}); }catch(e){} }
+  abWrite();
+}
+function save(){
+  if(!hasCloud && !hasLocal) return;
+  pendingSave = true;
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(flushSave, 250);
+}
+// タブやウィンドウを閉じる・切り替える直前に、待たずに保存する
+window.addEventListener("pagehide", flushSave);
+window.addEventListener("beforeunload", flushSave);
+document.addEventListener("visibilitychange", ()=>{ if(document.visibilityState==="hidden") flushSave(); });
+// 同じアプリを別のタブでも開いているとき、片方の変更をもう片方に反映する（古い内容で上書きしてしまうのを防ぐ）
+window.addEventListener("storage", e=>{
+  if(e.key!==KEY || !e.newValue) return;
+  try{
+    state = Object.assign({start:null,roster:{},finishes:[],rosterFile:null,eventName:"",opt:{sec:false}}, JSON.parse(e.newValue));
+    state.opt = Object.assign({sec:false}, state.opt||{});
+    $("fmtSel").value = state.opt.sec ? "hms" : "hm";
+    syncSettingsFields(); renderAll();
+  }catch(err){}
+});
+
+/* ---------- time helpers ---------- */
+function fmtClock(ms){ const d=new Date(ms);
+  return `${d.getFullYear()}/${pad(d.getMonth()+1)}/${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`; }
+function fmtClockShort(ms){ const d=new Date(ms);
+  return `${pad(d.getMonth()+1)}/${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`; }
+function fmtDur(ms){                      // 24時間を超えてもそのまま積み上げる
+  if(ms==null || isNaN(ms)) return "--:--:--";
+  const neg = ms<0; ms = Math.abs(ms);
+  const s = Math.floor(ms/1000);
+  return (neg?"-":"") + `${pad(Math.floor(s/3600))}:${pad(Math.floor(s/60)%60)}:${pad(s%60)}`;
+}
+function dayOffset(ms){ return Math.floor(ms/86400000); }
+function toLocalInput(ms){ const d=new Date(ms);
+  return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`; }
+function elapsedOf(rec){ return state.start==null ? null : rec.t - state.start; }
+
+/* ---------- tabs ---------- */
+function showTab(k){
+  for(const t of ["rec","list","set"]){
+    $("pane-"+t).classList.toggle("hidden", t!==k);
+    $("tab-"+t).setAttribute("aria-selected", String(t===k));
+  }
+  if(k==="rec") $("bib").focus({preventScroll:true});
+  renderAll();
+}
+
+/* ---------- recording ---------- */
+function newId(){ return Date.now().toString(36)+Math.random().toString(36).slice(2,6); }
+function msg(el,text,cls){ const e=$(el); e.textContent=text; e.className="msg"+(cls?" "+cls:""); }
+
+function stOf(r){ return r.st || "FIN"; }
+function labelOf(bib){ return nameOf(bib) ? nameOf(bib)+"（"+bib+"）" : "受付番号 "+bib; }
+
+function recordFinish(){
+  const t = Date.now();
+  const bib = $("bib").value.trim();
+  if(state.start==null){ msg("recMsg","先に設定タブでスタート時刻を決めてください。","err"); return; }
+  if(!bib){ msg("recMsg","受付番号を入力してください。空のまま記録するときは「時刻だけ先に打刻」を使います。","warn"); return; }
+  const dup = state.finishes.find(f=>f.bib===bib);
+  if(dup){ msg("recMsg",`受付番号 ${bib} は記録済みです（${stOf(dup)==="FIN"?fmtClockShort(dup.t)+" ゴール":stOf(dup)}）。直すときは一覧から編集してください。`,"err"); return; }
+  const rec = {id:newId(), bib, t, st:"FIN"};
+  state.finishes.push(rec); freshId = rec.id;
+  save(); $("bib").value=""; $("bib").focus({preventScroll:true});
+  msg("recMsg",`${labelOf(bib)} ／ タイム ${fmtDur(t-state.start)}`,"");
+  renderAll();
+}
+function recordRetire(kind){
+  const bib = $("bib").value.trim();
+  if(!bib){ msg("recMsg",`受付番号を入力してから ${kind} を押してください。`,"warn"); return; }
+  const dup = state.finishes.find(f=>f.bib===bib);
+  if(dup){ msg("recMsg",`受付番号 ${bib} は記録済みです（${stOf(dup)==="FIN"?fmtClockShort(dup.t)+" ゴール":stOf(dup)}）。変更は一覧の編集から行えます。`,"err"); return; }
+  const rec = {id:newId(), bib, t:Date.now(), st:kind};
+  state.finishes.push(rec); freshId = rec.id;
+  save(); $("bib").value=""; $("bib").focus({preventScroll:true});
+  msg("recMsg",`${labelOf(bib)} を ${kind}（${kind==="DNS"?"未出走":"途中棄権"}）で記録しました。タイムは付きません。`,"warn");
+  renderAll();
+}
+function stampOnly(){
+  if(state.start==null){ msg("recMsg","先に設定タブでスタート時刻を決めてください。","err"); return; }
+  const rec={id:newId(), bib:"", t:Date.now(), st:"FIN"};
+  state.finishes.push(rec); freshId=rec.id; save();
+  msg("recMsg",`${fmtClockShort(rec.t)} を打刻しました。あとで受付番号を入れてください。`,"warn");
+  renderAll();
+}
+function assignPending(id){
+  const v = $("p_"+id).value.trim(); if(!v) return;
+  if(state.finishes.some(f=>f.bib===v)){ msg("recMsg",`受付番号 ${v} は既に記録済みです。`,"err"); return; }
+  const r = state.finishes.find(f=>f.id===id); if(!r) return;
+  r.bib=v; save(); renderAll(); msg("recMsg",`受付番号 ${v} のタイムを確定しました。`,"");
+}
+function nameOf(bib){ return state.roster[String(bib)] || ""; }
+
+/* ---------- rendering ---------- */
+function renderClock(){
+  const now = Date.now();
+  const d = new Date(now);
+  $("nowClock").textContent = `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+  if(state.start==null){
+    $("elapsed").textContent = "--:--:--";
+    $("startInfo").textContent = "スタート時刻が未設定です";
+    return;
+  }
+  const e = now - state.start;
+  const txt = fmtDur(e);
+  $("elapsed").innerHTML = txt.slice(0,-3) + '<span class="sec">' + txt.slice(-3) + '</span>';
+  const days = Math.floor(Math.max(e,0)/86400000);
+  $("startInfo").innerHTML = "スタートからの経過" + `<b class="num">${fmtClock(state.start)} 発</b>` + (days>=1 ? `${days+1}日目` : "");
+}
+function timeCell(r){
+  const st = stOf(r);
+  if(st==="DNS") return '<span class="tag dns">DNS</span>';
+  if(st==="DNF") return '<span class="tag dnf">DNF</span>';
+  return fmtDur(elapsedOf(r));
+}
+function medalCell(r){
+  if(stOf(r)!=="FIN" || !r.bib) return '<span class="none">—</span>';
+  return `<button class="btn medal${r.medal?" on":""}" aria-pressed="${r.medal?"true":"false"}" onclick="toggleMedal('${r.id}')">${r.medal?"メダル ✓":"メダル"}</button>`;
+}
+function toggleMedal(id){
+  const r = state.finishes.find(f=>f.id===id); if(!r) return;
+  r.medal = !r.medal; freshId = null; save(); renderAll();
+}
+function setFmt(){ state.opt.sec = $("fmtSel").value==="hms"; save(); }
+const bibCell = r => r.bib ? r.bib : '<span class="missing">未入力</span>';
+const nameCell = r => nameOf(r.bib) || '<span class="none">—</span>';
+const editBtn = r => `<button class="btn quiet sm" onclick="openEdit('${r.id}')">編集</button>`;
+function rowFinish(r, rank){                     // 一覧の1行
+  const clock = stOf(r)==="DNS" ? "—" : fmtClockShort(r.t);
+  return `<tr class="${r.id===freshId?"fresh":""}">
+    <td class="rank num">${rank}</td>
+    <td class="num">${bibCell(r)}</td>
+    <td title="${nameOf(r.bib)}">${nameCell(r)}</td>
+    <td class="clk num">${clock}</td>
+    <td class="t">${timeCell(r)}</td>
+    <td>${medalCell(r)}</td>
+    <td class="act">${editBtn(r)}</td>
+  </tr>`;
+}
+function rowRecent(r){                           // 記録タブの直近の1行
+  return `<tr class="${r.id===freshId?"fresh":""}">
+    <td class="num">${bibCell(r)}</td>
+    <td title="${nameOf(r.bib)}">${nameCell(r)}</td>
+    <td class="t">${timeCell(r)}</td>
+    <td class="act">${editBtn(r)}</td>
+  </tr>`;
+}
+function renderRecent(){
+  const rs = [...state.finishes].sort((a,b)=>b.t-a.t).slice(0,8);
+  $("recentBody").innerHTML = rs.length ? rs.map(rowRecent).join("")
+    : `<tr><td colspan="4" class="empty">まだ記録はありません。ゴールしたら受付番号を入れて「ゴール記録」を押します。</td></tr>`;
+  const pend = state.finishes.filter(f=>!f.bib).sort((a,b)=>a.t-b.t);
+  $("pendingCard").style.display = pend.length? "block":"none";
+  $("pendingPanelTitle").textContent = `受付番号が未入力の打刻（${pend.length}件）`;
+  $("pendingBody").innerHTML = pend.map(r=>`<tr>
+      <td class="num" style="color:var(--sub)">${fmtClockShort(r.t).slice(6)}</td>
+      <td class="t">${fmtDur(elapsedOf(r))}</td>
+      <td><input id="p_${r.id}" inputmode="numeric" placeholder="番号" aria-label="受付番号" onkeydown="if(event.key==='Enter')assignPending('${r.id}')"></td>
+      <td class="act"><button class="btn primary sm" onclick="assignPending('${r.id}')">確定</button></td>
+    </tr>`).join("");
+}
+function renderList(){
+  const mode = $("sortSel").value;
+  const order = {FIN:0, DNF:1, DNS:2};
+  let rs = [...state.finishes];
+  if(mode==="time") rs.sort((a,b)=>(order[stOf(a)]-order[stOf(b)]) || a.t-b.t);
+  else if(mode==="recent") rs.sort((a,b)=>b.t-a.t);
+  else rs.sort((a,b)=>(parseInt(a.bib||"999999")-parseInt(b.bib||"999999")) || a.t-b.t);
+
+  const fin = state.finishes.filter(r=>stOf(r)==="FIN").length;
+  const dnf = state.finishes.filter(r=>stOf(r)==="DNF").length;
+  const dns = state.finishes.filter(r=>stOf(r)==="DNS").length;
+  const medals = state.finishes.filter(r=>stOf(r)==="FIN" && r.medal).length;
+  $("countPill").innerHTML = `ゴール <b>${fin}</b> 名` + (dnf?`　DNF <b>${dnf}</b>`:"") + (dns?`　DNS <b>${dns}</b>`:"") + (medals?`　メダル <b>${medals}</b>`:"");
+
+  let rank = 0;
+  $("listBody").innerHTML = rs.length
+    ? rs.map(r=>{
+        const showNum = mode==="time" && stOf(r)==="FIN" ? ++rank : "";
+        return rowFinish(r, showNum);
+      }).join("")
+    : `<tr><td colspan="7" class="empty">記録がありません。<br>記録タブで受付番号を入力すると、ここに順位とタイムが並びます。</td></tr>`;
+}
+function renderRoster(){
+  const n = Object.keys(state.roster).length;
+  $("rosterInfo").textContent = n ? `名簿：${n} 名を読み込み済み` : "名簿は未取り込みです（名簿がなくても受付番号だけで計測できます）";
+}
+function renderEvent(){
+  const name = state.eventName || "";
+  $("eventName").textContent = name;
+  document.title = name ? name : "タイム計測";
+}
+function renderAll(){ renderClock(); renderRecent(); renderList(); renderRoster(); renderEvent(); }
+
+/* ---------- settings ---------- */
+function syncSettingsFields(){
+  if(state.start==null) return;
+  const d=new Date(state.start);
+  $("sDate").value=`${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
+  $("sTime").value=`${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+}
+function setStartNow(){
+  const d=new Date();
+  $("sDate").value=`${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
+  $("sTime").value=`${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+}
+function saveStart(){
+  const dv=$("sDate").value, tv=$("sTime").value;
+  if(!dv||!tv){ msg("setMsg","日付と時刻の両方を入れてください。","err"); return; }
+  const ms = new Date(`${dv}T${tv.length===5?tv+":00":tv}`).getTime();
+  if(isNaN(ms)){ msg("setMsg","時刻を読み取れませんでした。","err"); return; }
+  state.start = ms; save(); renderAll();
+  msg("setMsg","スタート時刻を "+fmtClock(ms)+" にしました。","");
+}
+function wipe(){
+  const b=$("wipeBtn");
+  if(b.dataset.armed!=="1"){ b.dataset.armed="1"; b.textContent="本当に削除する（もう一度）"; setTimeout(()=>{b.dataset.armed="";b.textContent="全データを削除";},4000); return; }
+  state={start:null,roster:{},finishes:[],rosterFile:null,eventName:"",opt:{sec:false}}; $("fmtSel").value="hm"; b.dataset.armed=""; b.textContent="全データを削除";
+  $("sDate").value=""; $("sTime").value="";
+  // 画面に残っている各種メッセージ・選択済みファイル・入力途中の内容も消す
+  ["recMsg","setMsg","rosterMsg","backupMsg"].forEach(id=>msg(id,"",""));
+  $("rosterFile").value=""; $("backupFile").value=""; $("bib").value="";
+  freshId=null; editingId=null; $("sortSel").value="time";
+  save(); renderAll(); msg("backupMsg","全データを削除しました。","");
+}
+
+/* ---------- roster import ---------- */
+function abToB64(buf){
+  const u=new Uint8Array(buf); let bin=""; const CH=0x8000;
+  for(let i=0;i<u.length;i+=CH) bin+=String.fromCharCode.apply(null,u.subarray(i,i+CH));
+  return btoa(bin);
+}
+function norm(b){ return String(b).trim().replace(/^0+(?=\d)/,""); }
+
+function eventNameFrom(ws, headerRowIdx){      // A1 の 『 』 の中の文字（なければ、見出し行の上にあるタイトル）
+  const c=ws["A1"]; const t=c ? String(c.w ?? c.v ?? "").trim() : "";
+  if(!t) return "";
+  const m=/『([^』]+)』/.exec(t);
+  if(m) return m[1].trim();
+  return headerRowIdx>0 ? t.replace(TITLE_OLD,"").trim() : "";
+}
+function importRoster(ev){
+  const file = ev.target.files[0]; if(!file) return;
+  if(typeof XLSX==="undefined"){ msg("rosterMsg","読み込み用の部品を取得できませんでした。通信環境を確認して開き直してください。","err"); return; }
+  const fr=new FileReader();
+  fr.onload = e=>{
+    try{
+      const buf = e.target.result;
+      const u8 = new Uint8Array(buf);
+      const isXlsx = /\.xlsx$/i.test(file.name) && u8[0]===0x50 && u8[1]===0x4B;
+      const wb = XLSX.read(u8,{type:"array"});
+      const sheetName = wb.SheetNames[0];
+      const ws = wb.Sheets[sheetName];
+      const rows = XLSX.utils.sheet_to_json(ws,{header:1,blankrows:true,raw:false});
+      if(!rows.length){ msg("rosterMsg","中身が空でした。","err"); return; }
+      const rng = ws["!ref"] ? XLSX.utils.decode_range(ws["!ref"]) : {s:{r:0,c:0},e:{r:0,c:0}};
+      const squash=v=>String(v??"").replace(/[\s\u3000]/g,"");          // 「氏　名」など空白入りの見出しにも対応
+      const NUMS=[/受付番号/,/会員番号/,/ゼッケン|ナンバー|bib/i,/番号|no\.?|number/i];
+      const NAME=/(氏名|名前|選手名|会員名|参加者|name)/i;
+      const findNum=r=>{ for(const re of NUMS){ const k=r.findIndex(v=>re.test(v)&&!/認定/.test(v)); if(k>=0) return k; } return -1; };
+      let ci=0, cn=1, headerRow=-1, nameGuess=false;
+      for(let i=0;i<Math.min(rows.length,15);i++){
+        const r=Array.from(rows[i]||[], squash);
+        const a=findNum(r); if(a<0) continue;
+        const b=r.findIndex((v,j)=>j!==a && NAME.test(v));
+        if(b>=0){ ci=a; cn=b; headerRow=i; nameGuess=false; break; }
+        if(headerRow<0 && r.filter(v=>v!=="").length>=2){ ci=a; cn=a+1; headerRow=i; nameGuess=true; }
+      }
+      const noHeader = headerRow<0;
+      const start = headerRow>=0 ? headerRow+1 : 0;
+      const map={}, rowOf={}; let n=0, firstData=-1;
+      for(let i=start;i<rows.length;i++){
+        const rr = rows[i]||[];
+        const bib=String(rr[ci]??"").trim(), nm=String(rr[cn]??"").trim();
+        if(!bib||!/\d/.test(bib)) continue;
+        if(firstData<0) firstData=i;
+        map[norm(bib)]=nm; map[bib]=nm; rowOf[norm(bib)]=rng.s.r+i+1; n++;
+      }
+      if(!n){ msg("rosterMsg","受付番号の列を読み取れませんでした。見出しか列の並びを確認してください。","err"); return; }
+      // 見出し文字で判別できなかった場合でも、最初のデータ行の1つ上が見出し行らしければそこにタイトルを入れる
+      if(headerRow<0 && firstData>0){
+        const r=Array.from(rows[firstData-1]||[]).filter(v=>v!=null && String(v).trim()!=="");
+        if(r.length>=2) headerRow=firstData-1;
+      }
+
+      const headers={};
+      if(headerRow>=0) Array.from(rows[headerRow]||[]).forEach((v,j)=>{ if(v!=null && String(v).trim()!=="") headers[rng.s.c+j+1]=String(v).trim(); });
+
+      state.roster = map;
+      state.eventName = eventNameFrom(ws, headerRow);
+      state.rosterFile = isXlsx ? {
+        name:file.name, b64:abToB64(buf), sheet:sheetName,
+        headerRow: headerRow>=0 ? rng.s.r+headerRow+1 : 0,
+        bibCol: rng.s.c+ci+1, nameCol: rng.s.c+cn+1, rowOf, headers
+      } : null;
+      save(); renderAll();
+      msg("rosterMsg", `${n} 名を読み込みました${noHeader?"（見出しが見つからないためA列=受付番号、B列=氏名として読みました）":(nameGuess?"（氏名の見出しが見つからないため、番号の右隣の列を氏名として読みました）":"")}。`
+        + (state.eventName ? ` 大会名「${state.eventName}」を表示しました。` : "") + (isXlsx ? " 元のレイアウトを保存しました。" : " .xlsx以外のため、Excel書き出しは新規ファイルになります。"), "");
+    }catch(err){ msg("rosterMsg","ファイルを読めませんでした："+err.message,"err"); }
+    ev.target.value="";
+  };
+  fr.readAsArrayBuffer(file);
+}
+
+/* ---------- edit ---------- */
+function syncEditSt(){
+  const st = $("eSt").value;
+  $("eTimeWrap").style.display = st==="DNS" ? "none" : "block";
+  $("eTimeWrap").querySelector("label").textContent = st==="DNF" ? "リタイア記録日時" : "ゴール日時";
+}
+function openEdit(id){
+  editingId=id;
+  const r = id? state.finishes.find(f=>f.id===id) : null;
+  $("editTitle").textContent = r? "記録を編集" : "手入力で追加";
+  $("eDel").style.display = r? "inline-block":"none";
+  $("eBib").value = r? r.bib : "";
+  $("eSt").value = r? stOf(r) : "FIN";
+  $("eTime").value = toLocalInput(r? r.t : Date.now());
+  syncEditSt();
+  editDlg.showModal();
+}
+function saveEdit(){
+  const bib=$("eBib").value.trim(), st=$("eSt").value;
+  let ms = st==="DNS" ? (editingId ? (state.finishes.find(f=>f.id===editingId)||{}).t || Date.now() : Date.now())
+                      : new Date($("eTime").value).getTime();
+  if(isNaN(ms)){ alert("日時を読み取れませんでした。"); return; }
+  if(bib && state.finishes.some(f=>f.bib===bib && f.id!==editingId)){ alert("その受付番号は既に記録されています。"); return; }
+  if(editingId){ const r=state.finishes.find(f=>f.id===editingId); r.bib=bib; r.t=ms; r.st=st; if(st!=="FIN") r.medal=false; }
+  else state.finishes.push({id:newId(),bib,t:ms,st,medal:false});
+  save(); editDlg.close(); renderAll();
+}
+function deleteEditing(){
+  state.finishes = state.finishes.filter(f=>f.id!==editingId);
+  save(); editDlg.close(); renderAll();
+}
+
+/* ---------- csv ---------- */
+function exportCsv(){
+  const order = {FIN:0, DNF:1, DNS:2};
+  const rs=[...state.finishes].sort((a,b)=>(order[stOf(a)]-order[stOf(b)]) || a.t-b.t);
+  const lines=["順位,受付番号,氏名,結果,ゴール日時,タイム,メダル"];
+  let rank=0;
+  rs.forEach(r=>{
+    const st=stOf(r), fin=st==="FIN";
+    lines.push([ fin? ++rank : "", r.bib, `"${(nameOf(r.bib)||"").replace(/"/g,'""')}"`,
+      fin?"ゴール":st, st==="DNS"?"":fmtClock(r.t), fin?fmtDur(elapsedOf(r)):"", (fin&&r.medal)?MEDAL_MARK:"" ].join(","));
+  });
+  const head = `スタート,${state.start?fmtClock(state.start):"未設定"}\n`;
+  const csv = head + lines.join("\n");
+  $("csvText").value = csv;
+  download("race-results.csv", "\ufeff"+csv, "text/csv");
+  csvDlg.showModal();
+}
+
+/* ---------- xlsx export（元の名簿レイアウトを保ったまま書き込む） ---------- */
+const MEDAL_MARK = "✕";                       // メダル列に入れる記号
+const NS_MAIN = "http://schemas.openxmlformats.org/spreadsheetml/2006/main";
+const NS_REL  = "http://schemas.openxmlformats.org/officeDocument/2006/relationships";
+
+function fmtExcel(ms){
+  if(ms==null || isNaN(ms)) return "";
+  const s=Math.max(0,Math.floor(ms/1000));
+  const h=Math.floor(s/3600), m=Math.floor(s/60)%60, sec=s%60;
+  return state.opt.sec ? `${h}:${pad(m)}:${pad(sec)}` : `${h}:${pad(m)}`;
+}
+function resultText(r){ if(!r) return ""; const st=stOf(r); return st!=="FIN" ? st : fmtExcel(elapsedOf(r)); }
+function medalText(r){ return (r && stOf(r)==="FIN" && r.medal) ? MEDAL_MARK : ""; }
+function recMap(){ const m=new Map(); state.finishes.forEach(r=>{ if(r.bib) m.set(norm(r.bib), r); }); return m; }
+function collectExtras(rosterNorms){          // 名簿にない番号・番号未入力の打刻
+  const withBib = state.finishes.filter(f=>f.bib && !rosterNorms.has(norm(f.bib)))
+    .sort((a,b)=>(parseInt(a.bib)||0)-(parseInt(b.bib)||0)).map(r=>({bib:r.bib, rec:r}));
+  const noBib = state.finishes.filter(f=>!f.bib).sort((a,b)=>a.t-b.t).map(r=>({bib:"（受付番号未入力）", rec:r}));
+  return withBib.concat(noBib);
+}
+function colNum(L){ let n=0; for(const ch of L) n=n*26+(ch.charCodeAt(0)-64); return n; }
+function colLetter(n){ let s=""; while(n>0){ const m=(n-1)%26; s=String.fromCharCode(65+m)+s; n=Math.floor((n-1)/26); } return s; }
+function splitRef(ref){ const m=/^([A-Z]+)(\d+)$/.exec(ref); return m ? {col:colNum(m[1]), row:+m[2]} : {col:0,row:0}; }
+
+async function findSheetPath(zip, sheetName){
+  const wb = new DOMParser().parseFromString(await zip.file("xl/workbook.xml").async("string"),"application/xml");
+  let rid=null;
+  for(const sh of Array.from(wb.getElementsByTagNameNS(NS_MAIN,"sheet"))){
+    if(sh.getAttribute("name")===sheetName){ rid = sh.getAttributeNS(NS_REL,"id") || sh.getAttribute("r:id"); break; }
+  }
+  if(!rid) throw new Error("シートが見つかりません");
+  const rels = new DOMParser().parseFromString(await zip.file("xl/_rels/workbook.xml.rels").async("string"),"application/xml");
+  for(const rel of Array.from(rels.getElementsByTagName("Relationship"))){
+    if(rel.getAttribute("Id")===rid){ const t=rel.getAttribute("Target"); return t.startsWith("/") ? t.slice(1) : "xl/"+t; }
+  }
+  throw new Error("シートの場所が分かりません");
+}
+
+async function exportXlsx(){
+  const rf = state.rosterFile; let done=false;
+  if(rf && typeof JSZip!=="undefined"){
+    try{ await exportTemplate(rf); done=true; }
+    catch(err){ console.error(err); alert("元のレイアウトでの書き出しに失敗したため、簡易形式で書き出します。\n（"+err.message+"）"); }
+  }
+  if(!done) exportPlainXlsx();
+  if(EMBEDDED) openSaveDialog();
+}
+
+const TITLE_OLD = /申(?:し)?込(?:み)?確認リスト/g, TITLE_NEW = "リザルト";
+function textNodesOf(si){                       // ふりがな(rPh)を除いた本文の <t> だけを返す
+  const out=[];
+  Array.from(si.children).forEach(ch=>{
+    if(ch.localName==="t") out.push(ch);
+    else if(ch.localName==="r") Array.from(ch.children).forEach(x=>{ if(x.localName==="t") out.push(x); });
+  });
+  return out;
+}
+async function retitle(zip, doc){               // シート内のタイトル文字を置き換える（書式は保つ）
+  let sis=[];
+  const f=zip.file("xl/sharedStrings.xml");
+  if(f){
+    const sst=new DOMParser().parseFromString(await f.async("string"),"application/xml");
+    sis=Array.from(sst.getElementsByTagNameNS(NS_MAIN,"si"));
+  }
+  const test=txt=>{ TITLE_OLD.lastIndex=0; return TITLE_OLD.test(txt); };
+  Array.from(doc.getElementsByTagNameNS(NS_MAIN,"c")).forEach(c=>{
+    const t=c.getAttribute("t"); let si=null;
+    if(t==="s"){ const v=c.getElementsByTagNameNS(NS_MAIN,"v")[0]; si = v ? sis[+v.textContent] : null; }
+    else if(t==="inlineStr"){ si=c.getElementsByTagNameNS(NS_MAIN,"is")[0]||null; }
+    if(!si) return;
+    const full=textNodesOf(si).map(n=>n.textContent).join("");
+    if(!test(full)) return;
+    let is=si;
+    if(t==="s"){                                 // 共有文字列は他のセルも使うので、このセルだけ個別の文字列にする
+      is=doc.createElementNS(NS_MAIN,"is");
+      Array.from(si.children).forEach(ch=>{ if(ch.localName!=="rPh" && ch.localName!=="phoneticPr") is.appendChild(doc.importNode(ch,true)); });
+      Array.from(c.children).forEach(ch=>{ if(ch.localName==="v") c.removeChild(ch); });
+      c.setAttribute("t","inlineStr"); c.appendChild(is);
+    }
+    let changed=false;
+    textNodesOf(is).forEach(n=>{ const r=n.textContent.replace(TITLE_OLD,TITLE_NEW); if(r!==n.textContent){ n.textContent=r; changed=true; } });
+    if(!changed){                                // 語句が複数の書式にまたがる場合は1つにまとめる
+      while(is.firstChild) is.removeChild(is.firstChild);
+      const tt=doc.createElementNS(NS_MAIN,"t"); tt.textContent=full.replace(TITLE_OLD,TITLE_NEW); is.appendChild(tt);
+    }
+  });
+}
+
+async function exportTemplate(rf){
+  const zip = await JSZip.loadAsync(rf.b64,{base64:true});
+  const path = await findSheetPath(zip, rf.sheet);
+  const doc = new DOMParser().parseFromString(await zip.file(path).async("string"),"application/xml");
+  if(doc.getElementsByTagName("parsererror").length) throw new Error("シートを読み取れませんでした");
+  const sd = doc.getElementsByTagNameNS(NS_MAIN,"sheetData")[0];
+  if(!sd) throw new Error("シートの構造が想定と違います");
+
+  const rowEls = new Map();
+  Array.from(sd.children).forEach(r=>{ if(r.localName==="row") rowEls.set(+r.getAttribute("r"), r); });
+  const cellsOf = rowEl => {
+    const out=[]; let pos=0;
+    for(const c of Array.from(rowEl.children)){
+      if(c.localName!=="c") continue;
+      const r=c.getAttribute("r"); pos = r ? splitRef(r).col : pos+1;
+      out.push({el:c, col:pos});
+    }
+    return out;
+  };
+  const ensureRow = n => {
+    let el=rowEls.get(n); if(el) return el;
+    el=doc.createElementNS(NS_MAIN,"row"); el.setAttribute("r",String(n));
+    let before=null;
+    rowEls.forEach((v,k)=>{ if(k>n && (!before || k<before.k)) before={k,v}; });
+    if(before) sd.insertBefore(el,before.v); else sd.appendChild(el);
+    rowEls.set(n,el); return el;
+  };
+  const styleAt = (rowNum,col) => {
+    const rowEl=rowEls.get(rowNum); if(!rowEl) return null;
+    const c=cellsOf(rowEl).find(x=>x.col===col);
+    return c ? c.el.getAttribute("s") : null;
+  };
+  const styleNear = (rowNum,col) => {          // 左隣のセルの書式（フォント・罫線・塗り）を引き継ぐ
+    const rowEl=rowEls.get(rowNum); if(!rowEl) return null;
+    const cs=cellsOf(rowEl).filter(c=>c.el.getAttribute("s"));
+    const left=cs.filter(c=>c.col<col).pop();
+    if(left) return left.el.getAttribute("s");
+    const right=cs.find(c=>c.col>col);
+    return right ? right.el.getAttribute("s") : null;
+  };
+  const put = (rowNum,col,text,style) => {
+    const rowEl=ensureRow(rowNum); rowEl.removeAttribute("spans");
+    const cs=cellsOf(rowEl);
+    let c=(cs.find(x=>x.col===col)||{}).el;
+    if(!c){
+      const sty = style!==undefined ? style : styleNear(rowNum,col);
+      c=doc.createElementNS(NS_MAIN,"c"); c.setAttribute("r",colLetter(col)+rowNum);
+      if(sty) c.setAttribute("s",sty);
+      const nx=cs.find(x=>x.col>col);
+      if(nx) rowEl.insertBefore(c,nx.el); else rowEl.appendChild(c);
+    }
+    while(c.firstChild) c.removeChild(c.firstChild);
+    c.removeAttribute("t");
+    if(text!==""){
+      c.setAttribute("t","inlineStr");
+      const is=doc.createElementNS(NS_MAIN,"is"), t=doc.createElementNS(NS_MAIN,"t");
+      t.textContent=text; is.appendChild(t); c.appendChild(is);
+    }
+  };
+
+  // 実際に中身のある最終列・最終行
+  let lastCol=Math.max(rf.bibCol||1, rf.nameCol||1), lastRow=0;
+  rowEls.forEach((el,n)=>cellsOf(el).forEach(c=>{
+    if(c.el.firstChild){ lastCol=Math.max(lastCol,c.col); lastRow=Math.max(lastRow,n); }
+  }));
+
+  // 見出しに同名の列があればそこへ、なければ右端に追加
+  const H = rf.headers||{};
+  const findCol = re => { const k=Object.keys(H).find(k=>re.test(H[k])); return k ? +k : 0; };
+  let cTime=findCol(/走行時間/), cMedal=findCol(/メダル/), cCert=findCol(/認定番号/);
+  const made={}; let nextCol=lastCol+1;
+  if(!cTime){  cTime=nextCol++;  made.time=true; }
+  if(!cMedal){ cMedal=nextCol++; made.medal=true; }
+  if(!cCert){  cCert=nextCol++;  made.cert=true; }
+  if(rf.headerRow){
+    if(made.time)  put(rf.headerRow,cTime,"走行時間");
+    if(made.medal) put(rf.headerRow,cMedal,"メダル");
+    if(made.cert)  put(rf.headerRow,cCert,"認定番号");
+  }
+
+  // 名簿の各行に結果を書き込む（認定番号は手入力用に空欄のまま）
+  const recs=recMap();
+  const entries=Object.entries(rf.rowOf).sort((a,b)=>a[1]-b[1]);
+  entries.forEach(([n,row])=>{
+    const r=recs.get(n);
+    put(row,cTime,resultText(r));
+    put(row,cMedal,medalText(r));
+    if(made.cert) put(row,cCert,"");
+  });
+
+  // 名簿にない番号・番号未入力の打刻は末尾に追加
+  const extras=collectExtras(new Set(Object.keys(rf.rowOf)));
+  let outRow = lastRow;
+  if(extras.length){
+    const styleRow = entries.length ? entries[entries.length-1][1] : (rf.headerRow||1);
+    const maxC = Math.max(lastCol,cTime,cMedal,cCert);
+    extras.forEach(x=>{
+      outRow++;
+      for(let c=1;c<=maxC;c++) put(outRow,c,"",styleAt(styleRow,c));
+      put(outRow,rf.bibCol,x.bib);
+      put(outRow,cTime,resultText(x.rec));
+      put(outRow,cMedal,medalText(x.rec));
+    });
+  }
+  const maxCol=Math.max(lastCol,cTime,cMedal,cCert), maxRow=Math.max(lastRow,outRow);
+
+  // 新しく作った列の幅
+  let colsEl=doc.getElementsByTagNameNS(NS_MAIN,"cols")[0];
+  const addWidth=(idx,w)=>{
+    let lastMax=0, covered=false;
+    if(colsEl) Array.from(colsEl.children).forEach(c=>{
+      const mn=+c.getAttribute("min"), mx=+c.getAttribute("max");
+      lastMax=Math.max(lastMax,mx); if(idx>=mn && idx<=mx) covered=true;
+    });
+    if(covered || idx<=lastMax) return;
+    if(!colsEl){ colsEl=doc.createElementNS(NS_MAIN,"cols"); sd.parentNode.insertBefore(colsEl,sd); }
+    const c=doc.createElementNS(NS_MAIN,"col");
+    c.setAttribute("min",String(idx)); c.setAttribute("max",String(idx));
+    c.setAttribute("width",String(w)); c.setAttribute("customWidth","1");
+    colsEl.appendChild(c);
+  };
+  if(made.time)  addWidth(cTime,14);
+  if(made.medal) addWidth(cMedal,8);
+  if(made.cert)  addWidth(cCert,14);
+
+  const dim=doc.getElementsByTagNameNS(NS_MAIN,"dimension")[0];
+  if(dim){ const st=(dim.getAttribute("ref")||"A1").split(":")[0]; dim.setAttribute("ref",`${st}:${colLetter(maxCol)}${maxRow}`); }
+
+  await retitle(zip, doc);
+
+  let out=new XMLSerializer().serializeToString(doc);
+  if(!/^<\?xml/.test(out)) out='<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n'+out;
+  zip.file(path,out,{createFolders:false});
+  const blob=await zip.generateAsync({type:"blob",compression:"DEFLATE",
+    mimeType:"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"});
+  download(`${(rf.name||"entry").replace(/\.xlsx$/i,"")}_結果.xlsx`, blob);
+}
+
+function exportPlainXlsx(){                    // 名簿がCSVなど、元のレイアウトが無い場合
+  if(typeof XLSX==="undefined"){ alert("Excel書き出し用の部品を読み込めていません。CSVをお使いください。"); return; }
+  const recs=recMap(), groups=new Map();
+  Object.keys(state.roster).forEach(k=>{ const n=norm(k); if(!groups.has(n) || k.length>groups.get(n).length) groups.set(n,k); });
+  const list=[...groups.entries()].sort((a,b)=>(parseInt(a[0])||0)-(parseInt(b[0])||0));
+  const row=(bib,name,r)=>({"受付番号":bib,"氏名":name,"走行時間":resultText(r),"メダル":medalText(r),"認定番号":""});
+  const rows=list.map(([n,k])=>row(k,state.roster[k]||"",recs.get(n)));
+  collectExtras(new Set(groups.keys())).forEach(x=>rows.push(row(x.bib,"",x.rec)));
+  const header=["受付番号","氏名","走行時間","メダル","認定番号"];
+  const ws=XLSX.utils.json_to_sheet(rows,{header});
+  ws["!cols"]=[{wch:10},{wch:18},{wch:12},{wch:8},{wch:12}];
+  const wb=XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb,ws,"リザルト");
+  const d=new Date();
+  const out=XLSX.write(wb,{bookType:"xlsx",type:"array"});
+  download(`result_${d.getFullYear()}${pad(d.getMonth()+1)}${pad(d.getDate())}.xlsx`,
+    new Blob([out],{type:"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"}));
+}
+
+/* ---------- backup ---------- */
+let EMBEDDED = (()=>{ try{ return window.top!==window.self; }catch(e){ return true; } })();
+function download(name, data, type){
+  try{
+    const blob = (typeof data==="string") ? new Blob([data],{type}) : data;
+    const url=URL.createObjectURL(blob);
+    const a=document.createElement("a"); a.href=url; a.download=name;
+    // 埋め込み表示でダウンロードが禁止されていても、アプリ画面そのものが別ページに置き換わらないようにする
+    if(EMBEDDED){ a.target="_blank"; a.rel="noopener"; }
+    a.style.display="none"; document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(()=>URL.revokeObjectURL(url),30000);
+    return true;
+  }catch(e){ return false; }
+}
+function resultRows(){                       // 名簿の並び順で「受付番号・氏名・走行時間・メダル」
+  const recs=recMap(), byNorm=new Map();
+  Object.keys(state.roster).forEach(k=>{ const n=norm(k); if(!byNorm.has(n)||k.length>byNorm.get(n).length) byNorm.set(n,k); });
+  const ro=state.rosterFile && state.rosterFile.rowOf;
+  const order=[...byNorm.keys()].sort(ro ? (a,b)=>(ro[a]||1e9)-(ro[b]||1e9) : (a,b)=>(parseInt(a)||0)-(parseInt(b)||0));
+  const row=(bib,name,r)=>[bib,name,resultText(r),medalText(r)];
+  const rows=order.map(n=>{ const k=byNorm.get(n); return row(k,state.roster[k]||"",recs.get(n)); });
+  collectExtras(new Set(byNorm.keys())).forEach(x=>rows.push(row(x.bib,"",x.rec)));
+  return rows;
+}
+function openSaveDialog(){
+  const tsv=["受付番号\t氏名\t走行時間\tメダル"].concat(resultRows().map(r=>r.join("\t"))).join("\n");
+  $("saveText").value=tsv; $("saveMsg").textContent="";
+  if(!$("saveDlg").open) $("saveDlg").showModal();
+}
+async function copySave(){
+  const ta=$("saveText"); ta.focus(); ta.select(); let ok=false;
+  try{ await navigator.clipboard.writeText(ta.value); ok=true; }catch(e){}
+  if(!ok){ try{ ok=document.execCommand("copy"); }catch(e){} }
+  msg("saveMsg", ok ? "コピーしました。Excelのセルを選んで貼り付けてください。" : "自動でコピーできませんでした。表を選択してコピー（Ctrl / ⌘ + C）してください。", ok?"":"warn");
+}
+function backupSave(){
+  const d=new Date();
+  const ok = download(`race-backup_${d.getFullYear()}${pad(d.getMonth()+1)}${pad(d.getDate())}_${pad(d.getHours())}${pad(d.getMinutes())}.json`,
+    JSON.stringify(state), "application/json");
+  msg("backupMsg", !ok ? "保存できませんでした。CSVでの書き出しをお使いください。" : EMBEDDED ? "保存を試みました。アプリ内表示では保存されない場合があるため、ブラウザで開いて実行してください。" : "バックアップを保存しました。", !ok?"err":(EMBEDDED?"warn":""));
+}
+function backupLoad(ev){
+  const f=ev.target.files[0]; if(!f) return;
+  const fr=new FileReader();
+  fr.onload=e=>{
+    try{
+      const o=JSON.parse(e.target.result);
+      if(!o || !Array.isArray(o.finishes)) throw new Error("形式が違います");
+      state={start:o.start??null, roster:o.roster||{}, finishes:o.finishes, rosterFile:o.rosterFile||null, eventName:o.eventName||"", opt:Object.assign({sec:false}, o.opt||{})}; $("fmtSel").value=state.opt.sec?"hms":"hm";
+      save(); syncSettingsFields(); renderAll();
+      msg("backupMsg", `復元しました（${state.finishes.length} 件）。`, "");
+    }catch(err){ msg("backupMsg","復元できませんでした："+err.message,"err"); }
+    ev.target.value="";
+  };
+  fr.readAsText(f);
+}
+
+/* ---------- 自動バックアップ（File System Access API） ---------- */
+const IDB_NAME="race-timer-fs", IDB_STORE="h";
+function idb(){ return new Promise((res,rej)=>{ const r=indexedDB.open(IDB_NAME,1); r.onupgradeneeded=()=>r.result.createObjectStore(IDB_STORE); r.onsuccess=()=>res(r.result); r.onerror=()=>rej(r.error); }); }
+async function idbGet(k){ const db=await idb(); return new Promise((res,rej)=>{ const q=db.transaction(IDB_STORE).objectStore(IDB_STORE).get(k); q.onsuccess=()=>res(q.result); q.onerror=()=>rej(q.error); }); }
+async function idbSet(k,v){ const db=await idb(); return new Promise((res,rej)=>{ const t=db.transaction(IDB_STORE,"readwrite"); t.objectStore(IDB_STORE).put(v,k); t.oncomplete=()=>res(); t.onerror=()=>rej(t.error); }); }
+async function idbDel(k){ const db=await idb(); return new Promise((res,rej)=>{ const t=db.transaction(IDB_STORE,"readwrite"); t.objectStore(IDB_STORE).delete(k); t.oncomplete=()=>res(); t.onerror=()=>rej(t.error); }); }
+
+let ab = {handle:null, status:"off", last:null, busy:false, dirty:false, err:""};   // status: off | on | need | err
+function fsSupported(){ return typeof window.showSaveFilePicker==="function" && !EMBEDDED; }
+function stateIsEmpty(){ return state.start==null && !state.finishes.length && !Object.keys(state.roster).length; }
+
+async function abInit(){
+  if(fsSupported()){
+    try{
+      const h=await idbGet("backup");
+      if(h){ ab.handle=h; const p=await h.queryPermission({mode:"readwrite"}); ab.status = p==="granted" ? "on" : "need"; }
+    }catch(e){}
+  }
+  abRender();
+}
+async function abChoose(){
+  try{
+    const h=await window.showSaveFilePicker({suggestedName:"race-backup.json",
+      types:[{description:"バックアップ（JSON）",accept:{"application/json":[".json"]}}]});
+    ab.handle=h; ab.status="on";
+    try{ await idbSet("backup",h); }catch(e){ msg("abMsg","保存先は設定しましたが、次回起動時に再選択が必要になる場合があります。","warn"); }
+    await abWrite(true);
+  }catch(e){ if(e.name!=="AbortError") msg("abMsg","保存先を設定できませんでした："+e.message,"err"); }
+  abRender();
+}
+async function abResume(){
+  if(!ab.handle){ return abChoose(); }
+  try{
+    const p=await ab.handle.requestPermission({mode:"readwrite"});
+    ab.status = p==="granted" ? "on" : "need";
+    if(p==="granted"){ msg("abMsg","",""); await abWrite(true); }
+  }catch(e){ ab.status="need"; }
+  abRender();
+}
+async function abStop(){
+  ab.handle=null; ab.status="off"; ab.err="";
+  try{ await idbDel("backup"); }catch(e){}
+  msg("abMsg","自動バックアップを停止しました（保存済みのファイルはそのまま残ります）。","");
+  abRender();
+}
+async function abWrite(force){
+  if(ab.status!=="on" || !ab.handle) return;
+  if(stateIsEmpty() && !force) return;           // 「全データを削除」で、直前のバックアップを空で上書きしない
+  if(ab.busy){ ab.dirty=true; return; }
+  ab.busy=true;
+  try{
+    const w=await ab.handle.createWritable();
+    await w.write(JSON.stringify(state)); await w.close();
+    ab.last=new Date(); ab.err="";
+  }catch(e){
+    ab.status = (e.name==="NotAllowedError"||e.name==="SecurityError") ? "need" : "err"; ab.err=e.message||String(e);
+  }
+  ab.busy=false; abRender();
+  if(ab.dirty && ab.status==="on"){ ab.dirty=false; abWrite(); }
+}
+function abRender(){
+  const sup=fsSupported(), st=ab.status, el=$("abState");
+  const t=d=>`${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+  let txt="", cls="";
+  if(!sup){ txt="この画面では使えません。パソコンの Chrome または Edge で、このページを直接開いて使ってください（アプリ内の表示・スマホ・Safari・Firefox では使えません）。"; }
+  else if(st==="off"){ txt="未設定です。保存先を1回選ぶと、以後は自動で保存されます。"; }
+  else if(st==="on"){ txt=`自動バックアップ中：${ab.handle.name}　${ab.last?"最終保存 "+t(ab.last):"保存待ち"}`; cls="color:var(--ok)"; }
+  else if(st==="need"){ txt=`停止中：${ab.handle?ab.handle.name:""}　ブラウザの許可が必要です。「自動バックアップを再開」を押してください。`; cls="color:var(--warn)"; }
+  else { txt="保存に失敗しました："+ab.err; cls="color:var(--err)"; }
+  el.textContent=txt; el.style.cssText="margin-top:0;"+cls;
+  $("abChoose").style.display = (sup && st==="off") ? "" : "none";
+  $("abResume").style.display = (sup && (st==="need"||st==="err")) ? "" : "none";
+  $("abStop").style.display   = (sup && st!=="off") ? "" : "none";
+  $("abBanner").style.display = (sup && (st==="need"||st==="err")) ? "block" : "none";
+}
+
+/* ---------- boot ---------- */
+$("bib").addEventListener("keydown", e=>{ if(e.key==="Enter") recordFinish(); });
+setInterval(renderClock, 250);
+load().then(abInit);
+</script>
+</body>
+</html>
