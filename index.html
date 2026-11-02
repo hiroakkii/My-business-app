@@ -530,26 +530,60 @@ nav .reset[hidden]{display:none}
     }
     return out;
   }
-  function reqP(r){ return new Promise(function(res, rej){ r.onsuccess = function(){ res(r.result); }; r.onerror = function(){ rej(r.error); }; }); }
+  // どの処理も一定時間で打ち切り、画面が止まったままにならないようにする
+  var STEP_TIMEOUT = 15000;
+  function withTimeout(p, what, ms){
+    var t;
+    return Promise.race([p, new Promise(function(_, rej){
+      t = setTimeout(function(){ rej(new Error(what + 'が ' + Math.round((ms || STEP_TIMEOUT) / 1000) + ' 秒たっても終わりませんでした。')); }, ms || STEP_TIMEOUT);
+    })]).finally(function(){ clearTimeout(t); });
+  }
+  function reqP(r, what){
+    return withTimeout(new Promise(function(res, rej){
+      r.onsuccess = function(){ res(r.result); };
+      r.onerror = function(e){ if (e && e.preventDefault) e.preventDefault(); rej(r.error || new Error(what + 'に失敗しました')); };
+    }), what || 'データの読み書き');
+  }
+  // データベースがあるか調べる（無いときに空のものを作ってしまわないよう、作成は取り消す）
   async function idbExists(name){
-    if (!indexedDB.databases) return true;
-    return (await indexedDB.databases()).some(function(d){ return d.name === name; });
+    if (indexedDB.databases) {
+      try {
+        var list = await withTimeout(indexedDB.databases(), 'データベース一覧の取得', 3000);
+        return list.some(function(d){ return d.name === name; });
+      } catch(e) { /* 一覧が取れないブラウザ・状況では、開いて確かめる */ }
+    }
+    return withTimeout(new Promise(function(res, rej){
+      var created = false, r = indexedDB.open(name);
+      r.onupgradeneeded = function(){ created = true; r.transaction.abort(); };
+      r.onsuccess = function(){ r.result.close(); res(true); };
+      r.onerror = function(e){ if (e && e.preventDefault) e.preventDefault(); if (created) res(false); else rej(r.error); };
+      r.onblocked = function(){ rej(new Error('「' + name + '」がほかの画面で使用中です。')); };
+    }), '「' + name + '」の確認');
+  }
+  function openIdb(name){
+    return withTimeout(new Promise(function(res, rej){
+      var r = indexedDB.open(name);
+      r.onsuccess = function(){ var db = r.result; db.onversionchange = function(){ db.close(); }; res(db); };
+      r.onerror = function(e){ if (e && e.preventDefault) e.preventDefault(); rej(r.error); };
+      r.onblocked = function(){ rej(new Error('「' + name + '」がほかの画面で使用中です。ほかのタブ・ウィンドウでアプリを開いていたら閉じてください。')); };
+    }), '「' + name + '」を開く処理');
   }
   async function dumpIdb(name){
     if (!(await idbExists(name))) return null;
-    var db = await reqP(indexedDB.open(name));
+    var db = await openIdb(name);
     try {
       var out = { version: db.version, stores: {} };
       for (var i = 0; i < db.objectStoreNames.length; i++) {
         var sn = db.objectStoreNames[i], st = db.transaction(sn, 'readonly').objectStore(sn);
-        var keys = await reqP(st.getAllKeys());
-        st = db.transaction(sn, 'readonly').objectStore(sn);
-        var vals = await reqP(st.getAll());
-        out.stores[sn] = {
+        var meta = {
           keyPath: st.keyPath, autoIncrement: st.autoIncrement,
-          indexes: Array.prototype.map.call(st.indexNames, function(n){ var x = st.index(n); return { name: n, keyPath: x.keyPath, unique: x.unique, multiEntry: x.multiEntry }; }),
-          records: keys.map(function(k, j){ return [k, vals[j]]; })
+          indexes: Array.prototype.map.call(st.indexNames, function(n){ var x = st.index(n); return { name: n, keyPath: x.keyPath, unique: x.unique, multiEntry: x.multiEntry }; })
         };
+        var keysReq = st.getAllKeys(), valsReq = st.getAll();   // 同じ読み取りの中で、キーと中身をそろえて取る
+        var keys = await reqP(keysReq, '「' + name + '」の読み込み');
+        var vals = await reqP(valsReq, '「' + name + '」の読み込み');
+        meta.records = keys.map(function(k, j){ return [k, vals[j]]; });
+        out.stores[sn] = meta;
       }
       return out;
     } finally { db.close(); }
@@ -558,6 +592,7 @@ nav .reset[hidden]{display:none}
     return new Promise(function(res, rej){
       var r = indexedDB.deleteDatabase(name), t = setTimeout(function(){ rej(new Error('「' + name + '」を使用中のため削除できませんでした。ほかのタブ・ウィンドウでアプリを開いていたら閉じてください。')); }, 8000);
       r.onsuccess = function(){ clearTimeout(t); res(); };
+      r.onblocked = function(){ /* ほかの画面が閉じるのを待つ（8秒で打ち切り） */ };
       r.onerror = function(){ clearTimeout(t); rej(r.error); };
     });
   }
@@ -608,16 +643,29 @@ nav .reset[hidden]{display:none}
     if (a !== b) throw new Error('パスワードと確認用のパスワードが一致しません。');
     return a;
   }
+  function appLabel(id){ var a = APPS.find(function(x){ return x.id === id; }); return a ? a.label : id; }
   async function makeBackup(appIds){
     var pw = readPw();
+    if (pw && !(window.crypto && crypto.subtle)) throw new Error('このブラウザ・開き方では暗号化が使えません。パスワードを空にして保存するか、Microsoft Edge / Google Chrome で開いてください。');
     var data = { format: BACKUP_FORMAT, version: 1, createdAt: new Date().toISOString(), apps: appIds, localStorage: {}, indexedDB: {} };
     for (var i = 0; i < appIds.length; i++) {
-      lsKeys(appIds[i]).forEach(function(k){ data.localStorage[k] = localStorage.getItem(k); });
-      var dbs = DATA_APPS[appIds[i]].idb.filter(function(n){ return IDB_NO_BACKUP.indexOf(n) < 0; });
-      for (var j = 0; j < dbs.length; j++) { var d = await dumpIdb(dbs[j]); if (d) data.indexedDB[dbs[j]] = d; }
+      setStatus('', 'バックアップを作成しています…（' + appLabel(appIds[i]) + ' のデータを読み込み中）');
+      try {
+        lsKeys(appIds[i]).forEach(function(k){ data.localStorage[k] = localStorage.getItem(k); });
+        var dbs = DATA_APPS[appIds[i]].idb.filter(function(n){ return IDB_NO_BACKUP.indexOf(n) < 0; });
+        for (var j = 0; j < dbs.length; j++) { var d = await dumpIdb(dbs[j]); if (d) data.indexedDB[dbs[j]] = d; }
+      } catch(e) {
+        throw new Error(appLabel(appIds[i]) + ' のデータを読み込めませんでした。\n' + (e && e.message || e));
+      }
     }
+    setStatus('', 'バックアップを作成しています…（ファイルにまとめています）');
     var text = JSON.stringify(data);
-    if (pw) text = JSON.stringify(await encrypt(text, pw));
+    if (pw) {
+      setStatus('', 'バックアップを作成しています…（暗号化しています）');
+      try { text = JSON.stringify(await withTimeout(encrypt(text, pw), '暗号化', 60000)); }
+      catch(e) { throw new Error('暗号化できませんでした。\n' + (e && e.message || e)); }
+    }
+    setStatus('', 'バックアップを作成しています…（ファイルを保存しています）');
     var name = '業務アプリ_一括バックアップ_' + stamp() + (pw ? '_暗号化' : '') + '.json';
     var a = document.createElement('a');
     a.href = URL.createObjectURL(new Blob([text], { type: 'application/json' }));
@@ -635,7 +683,8 @@ nav .reset[hidden]{display:none}
   }
   function busy(on){
     dataBusy = on;
-    dataDlg.querySelectorAll('button, input').forEach(function(x){ x.disabled = on; });
+    // 「閉じる」はいつでも押せるようにしておく
+    dataDlg.querySelectorAll('button, input').forEach(function(x){ if (x.id !== 'data-close') x.disabled = on; });
   }
 
   dataBtn.addEventListener('click', function(){
@@ -652,15 +701,15 @@ nav .reset[hidden]{display:none}
     dataDlg.showModal();
   });
   document.getElementById('data-close').addEventListener('click', function(){ dataDlg.close(); });
-  dataDlg.addEventListener('cancel', function(e){ if (dataBusy) e.preventDefault(); });
+  dataDlg.addEventListener('close', function(){ if (dataBusy) busy(false); });
 
   document.getElementById('data-backup').addEventListener('click', async function(){
     busy(true); setStatus('', 'バックアップを作成しています…');
     try {
       var r = await makeBackup(Object.keys(DATA_APPS));
       setStatus('ok', '✓ バックアップを保存しました: ' + r.name + (r.encrypted ? '（暗号化）' : '（暗号化なし）') + '\nブラウザのダウンロード先に保存されます。');
-    } catch(e) { setStatus('ng', '✕ ' + e.message); }
-    busy(false);
+    } catch(e) { setStatus('ng', '✕ ' + (e && e.message || e)); }
+    finally { busy(false); }
   });
 
   var restoreInput = document.getElementById('data-restore-input');
