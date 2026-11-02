@@ -39,10 +39,33 @@ nav button.tab.dragging{z-index:2;cursor:grabbing;box-shadow:0 4px 14px rgba(0,0
 nav button.tab.dragging[aria-selected="true"]{background:var(--active-bg);color:var(--active-ink)}
 nav.reordering button.tab:not(.dragging){transition:transform .15s ease}
 nav.reordering{cursor:grabbing}
-nav .reset{margin-left:auto;align-self:center;margin-bottom:6px;padding:3px 10px;font-size:12px;
+nav .tools{margin-left:auto;align-self:center;display:flex;gap:8px;margin-bottom:6px;padding-left:12px}
+nav .tools button{border-radius:4px;font-size:12px;padding:4px 12px;white-space:nowrap}
+nav .import{background:var(--accent);color:#fff;font-weight:600}
+nav .import:hover{background:#2f78c2}
+nav .reset{align-self:center;margin-bottom:6px;padding:3px 10px;font-size:12px;
   font-weight:400;border-radius:4px;border:1px solid rgba(255,255,255,.3);opacity:.85}
 nav .reset:hover{opacity:1}
 nav .reset[hidden]{display:none}
+/* 患者マスタ一括取込 */
+#bulk{border:0;border-radius:10px;padding:0;width:min(560px,94vw);color:#1f2933;
+  box-shadow:0 12px 40px rgba(0,0,0,.35)}
+#bulk::backdrop{background:rgba(20,30,45,.45)}
+#bulk h2{margin:0;padding:16px 20px 10px;font-size:17px}
+#bulk .body{padding:0 20px 8px}
+#bulk p{margin:6px 0 10px;color:#4a5662;font-size:13px}
+#bulk ul{list-style:none;margin:0 0 8px;padding:0;border:1px solid #d9dfe5;border-radius:6px}
+#bulk li{display:flex;gap:10px;align-items:flex-start;padding:9px 12px;border-top:1px solid #eef1f4}
+#bulk li:first-child{border-top:0}
+#bulk li label{display:flex;gap:8px;align-items:center;font-weight:600;flex:0 0 auto;min-width:12em}
+#bulk li .res{flex:1;font-size:12.5px;color:#4a5662;white-space:pre-wrap;word-break:break-word}
+#bulk li .res.ok{color:#1d7a3e}
+#bulk li .res.ng{color:#b3261e}
+#bulk .foot{display:flex;gap:8px;justify-content:flex-end;padding:12px 20px 16px;border-top:1px solid #eef1f4}
+#bulk .foot button{font:inherit;padding:7px 16px;border-radius:6px;border:1px solid #c6ced6;background:#fff;cursor:pointer}
+#bulk .foot button.primary{background:var(--accent);border-color:var(--accent);color:#fff;font-weight:600}
+#bulk .foot button:disabled{opacity:.5;cursor:default}
+#bulk .file{font-size:13px;margin:0 0 8px}
 #frames{flex:1 1 auto;position:relative;min-height:0}
 #frames iframe{position:absolute;inset:0;width:100%;height:100%;border:0;background:#fff}
 #frames iframe[hidden]{display:none}
@@ -57,6 +80,21 @@ nav .reset[hidden]{display:none}
   <span class="brand" aria-hidden="true"><span class="brand-icon"><svg width="14" height="14" viewBox="0 0 14 14" fill="#fff"><rect x="0" y="0" width="6" height="6" rx="1.5"/><rect x="8" y="0" width="6" height="6" rx="1.5"/><rect x="0" y="8" width="6" height="6" rx="1.5"/><rect x="8" y="8" width="6" height="6" rx="1.5" opacity=".55"/></svg></span>業務アプリ</span>
 </nav>
 <div id="frames"></div>
+<dialog id="bulk" aria-labelledby="bulk-title">
+  <h2 id="bulk-title">患者マスタ一括取込</h2>
+  <div class="body">
+    <p>選んだ Excel ファイルを、チェックしたアプリの患者マスタに取り込みます。<br>
+      各アプリの患者マスタはこのファイルの内容に置き換わります（登録済みのデータはそのまま残ります）。<br>
+      取り込みの内容は各アプリで個別に取り込んだときと同じです（ID に「WA」・名前に「[亘]」の患者は、訪問リスト印刷以外では除外されます）。</p>
+    <div class="file" id="bulk-file"></div>
+    <ul id="bulk-list"></ul>
+  </div>
+  <div class="foot">
+    <button type="button" id="bulk-close">閉じる</button>
+    <button type="button" class="primary" id="bulk-pick">ファイルを選んで取り込む</button>
+  </div>
+  <input type="file" id="bulk-input" accept=".xlsx,.xlsm,.xls,.csv" hidden>
+</dialog>
 <script>
 (function(){
   'use strict';
@@ -106,11 +144,20 @@ nav .reset[hidden]{display:none}
   resetBtn.textContent = '並び順を元に戻す';
   resetBtn.addEventListener('click', function(){
     APPS.sort(function(a, b){ return DEFAULT_ORDER.indexOf(a.id) - DEFAULT_ORDER.indexOf(b.id); });
-    APPS.forEach(function(a){ nav.insertBefore(tabs[a.id], resetBtn); });
+    APPS.forEach(function(a){ nav.insertBefore(tabs[a.id], tools); });
     try { localStorage.removeItem(ORDER_KEY); } catch(e) {}
     updateReset();
   });
-  nav.appendChild(resetBtn);
+  var tools = document.createElement('div');
+  tools.className = 'tools';
+  var importBtn = document.createElement('button');
+  importBtn.type = 'button';
+  importBtn.className = 'import';
+  importBtn.textContent = '患者マスタ一括取込';
+  importBtn.title = '1つの Excel ファイルを、すべてのアプリの患者マスタにまとめて取り込みます';
+  tools.appendChild(resetBtn);
+  tools.appendChild(importBtn);
+  nav.appendChild(tools);
 
   function tabEls(){ return Array.prototype.slice.call(nav.querySelectorAll('button.tab')); }
   function updateReset(){
@@ -212,19 +259,24 @@ nav .reset[hidden]{display:none}
   // ドラッグを離したときにタブが切り替わらないようにする
   nav.addEventListener('click', function(e){ if (suppressClick) { e.stopPropagation(); e.preventDefault(); } }, true);
 
+  // 初めて開いたときだけ読み込み、以後は入力中の内容を保ったまま切り替える
+  function ensureFrame(app){
+    if (frames[app.id]) return frames[app.id];
+    var f = document.createElement('iframe');
+    f.id = 'frame-' + app.id;
+    f.title = app.label;
+    f.setAttribute('role','tabpanel');
+    f.setAttribute('aria-labelledby','tab-' + app.id);
+    f.hidden = true;
+    f.src = app.src;
+    box.appendChild(f);
+    frames[app.id] = f;
+    return f;
+  }
+
   function show(id){
     var app = APPS.find(function(a){ return a.id === id; }) || APPS[0];
-    // 初めて開いたときだけ読み込み、以後は入力中の内容を保ったまま切り替える
-    if (!frames[app.id]) {
-      var f = document.createElement('iframe');
-      f.id = 'frame-' + app.id;
-      f.title = app.label;
-      f.setAttribute('role','tabpanel');
-      f.setAttribute('aria-labelledby','tab-' + app.id);
-      f.src = app.src;
-      box.appendChild(f);
-      frames[app.id] = f;
-    }
+    ensureFrame(app);
     APPS.forEach(function(a){
       var on = a.id === app.id;
       tabs[a.id].setAttribute('aria-selected', on ? 'true' : 'false');
@@ -297,6 +349,98 @@ nav .reset[hidden]{display:none}
     try { msg = { portalFs: 1, id: d.id, ok: true, v: await FS_OPS[d.op](d.args || {}, d.cfg) }; }
     catch(err){ msg = { portalFs: 1, id: d.id, ok: false, v: { name: err && err.name, message: err && err.message } }; }
     e.source.postMessage(msg, '*');
+  });
+
+  // ---- 患者マスタ一括取込（各アプリの apps/common/portal-import.js とやり取りする） ----
+  var bulk = document.getElementById('bulk'), bulkList = document.getElementById('bulk-list');
+  var bulkInput = document.getElementById('bulk-input'), bulkPick = document.getElementById('bulk-pick');
+  var bulkClose = document.getElementById('bulk-close'), bulkFile = document.getElementById('bulk-file');
+  var BULK_KEY = 'businessApp.portal.bulkImportOff';
+  var importSeq = 0, importWaits = {}, bulkRunning = false;
+
+  window.addEventListener('message', function(e){
+    var d = e.data;
+    if (!d || d.portalImport !== 1 || !importWaits[d.id]) return;
+    var w = importWaits[d.id];
+    if (frames[w.app] && frames[w.app].contentWindow !== e.source) return;
+    delete importWaits[d.id];
+    w.res(d);
+  });
+  function askFrame(appId, msg, timeout){
+    return new Promise(function(res){
+      var id = ++importSeq, f = frames[appId];
+      importWaits[id] = { app: appId, res: res };
+      msg.portalImport = 1; msg.id = id;
+      try { f.contentWindow.postMessage(msg, '*'); } catch(e) { delete importWaits[id]; res(null); return; }
+      setTimeout(function(){ if (importWaits[id]) { delete importWaits[id]; res(null); } }, timeout);
+    });
+  }
+  // アプリが読み込み終わって受け取れるようになるまで待つ
+  async function frameReady(appId){
+    for (var i = 0; i < 60; i++) {
+      var r = await askFrame(appId, { op: 'ping' }, 500);
+      if (r && r.ok) return true;
+    }
+    return false;
+  }
+  function offList(){ try { return JSON.parse(localStorage.getItem(BULK_KEY) || '[]'); } catch(e) { return []; } }
+  function renderBulk(){
+    var off = offList();
+    bulkList.innerHTML = '';
+    APPS.forEach(function(a){
+      var li = document.createElement('li');
+      li.innerHTML = '<label><input type="checkbox"></label><span class="res"></span>';
+      var cb = li.querySelector('input');
+      cb.value = a.id; cb.checked = off.indexOf(a.id) < 0;
+      cb.addEventListener('change', function(){
+        var ids = Array.prototype.filter.call(bulkList.querySelectorAll('input'), function(x){ return !x.checked; })
+          .map(function(x){ return x.value; });
+        try { localStorage.setItem(BULK_KEY, JSON.stringify(ids)); } catch(e) {}
+      });
+      li.querySelector('label').appendChild(document.createTextNode(a.label));
+      bulkList.appendChild(li);
+    });
+    bulkFile.textContent = '';
+  }
+  function setRes(appId, cls, msg){
+    var cb = bulkList.querySelector('input[value="' + appId + '"]');
+    var el = cb && cb.closest('li').querySelector('.res');
+    if (el) { el.className = 'res' + (cls ? ' ' + cls : ''); el.textContent = msg; }
+  }
+  importBtn.addEventListener('click', function(){
+    if (bulkRunning) { bulk.showModal(); return; }
+    renderBulk();
+    bulkPick.disabled = false;
+    bulk.showModal();
+  });
+  bulkClose.addEventListener('click', function(){ bulk.close(); });
+  bulk.addEventListener('cancel', function(e){ if (bulkRunning) e.preventDefault(); });
+  bulkPick.addEventListener('click', function(){ bulkInput.click(); });
+  bulkInput.addEventListener('change', async function(){
+    var file = bulkInput.files[0];
+    bulkInput.value = '';
+    if (!file) return;
+    var ids = Array.prototype.filter.call(bulkList.querySelectorAll('input'), function(x){ return x.checked; })
+      .map(function(x){ return x.value; });
+    if (!ids.length) { alert('取り込むアプリを選んでください。'); return; }
+    bulkRunning = true;
+    bulkPick.disabled = bulkClose.disabled = true;
+    bulkList.querySelectorAll('input').forEach(function(x){ x.disabled = true; });
+    bulkFile.textContent = 'ファイル: ' + file.name;
+    APPS.forEach(function(a){ setRes(a.id, '', ids.indexOf(a.id) < 0 ? '（取り込まない）' : '待機中…'); });
+    // まだ開いていないタブのアプリも裏で読み込んでおく
+    ids.forEach(function(id){ ensureFrame(APPS.find(function(a){ return a.id === id; })); });
+    for (var k = 0; k < ids.length; k++) {
+      var id = ids[k];
+      setRes(id, '', '取り込み中…');
+      var r = (await frameReady(id)) ? await askFrame(id, { op: 'run', file: file }, 60000) : null;
+      if (!r) setRes(id, 'ng', '✕ このアプリと連携できませんでした。タブを開いて、アプリの「患者マスタ取込」から取り込んでください。');
+      else setRes(id, r.ok ? 'ok' : 'ng', (r.ok ? '✓ ' : '✕ ') + (r.message || (r.ok ? '取り込みました' : '取り込めませんでした')));
+    }
+    bulkRunning = false;
+    bulkPick.disabled = bulkClose.disabled = false;
+    bulkList.querySelectorAll('input').forEach(function(x){ x.disabled = false; });
+    bulkPick.textContent = '別のファイルを取り込む';
   });
 
   window.addEventListener('hashchange', function(){ show(location.hash.slice(1)); });
