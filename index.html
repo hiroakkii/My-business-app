@@ -66,6 +66,26 @@ nav .reset[hidden]{display:none}
 #bulk .foot button.primary{background:var(--accent);border-color:var(--accent);color:#fff;font-weight:600}
 #bulk .foot button:disabled{opacity:.5;cursor:default}
 #bulk .file{font-size:13px;margin:0 0 8px}
+/* バックアップ・データ削除 */
+#data{border:0;border-radius:10px;padding:0;width:min(620px,94vw);color:#1f2933;box-shadow:0 12px 40px rgba(0,0,0,.35)}
+#data::backdrop{background:rgba(20,30,45,.45)}
+#data h2{margin:0;padding:16px 20px 6px;font-size:17px}
+#data section{margin:10px 20px;padding:12px 14px;border:1px solid #d9dfe5;border-radius:8px}
+#data section.danger{border-color:#e7b8b4;background:#fdf6f5}
+#data h3{margin:0 0 6px;font-size:14px}
+#data p{margin:4px 0 8px;color:#4a5662;font-size:12.5px}
+#data .row{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+#data input[type=password]{font:inherit;padding:5px 8px;border:1px solid #c6ced6;border-radius:5px;width:12em}
+#data button{font:inherit;padding:6px 14px;border-radius:6px;border:1px solid #c6ced6;background:#fff;cursor:pointer}
+#data button.primary{background:var(--accent);border-color:var(--accent);color:#fff;font-weight:600}
+#data button.danger{background:#b3261e;border-color:#b3261e;color:#fff;font-weight:600}
+#data button:disabled{opacity:.5;cursor:default}
+#data .apps{display:flex;flex-wrap:wrap;gap:4px 14px;margin:4px 0 8px;font-size:13px}
+#data label{display:inline-flex;gap:5px;align-items:center}
+#data .status{margin:0 20px;min-height:1.4em;font-size:13px;white-space:pre-wrap}
+#data .status.ok{color:#1d7a3e}
+#data .status.ng{color:#b3261e}
+#data .foot{display:flex;justify-content:flex-end;padding:10px 20px 16px}
 #frames{flex:1 1 auto;position:relative;min-height:0}
 #frames iframe{position:absolute;inset:0;width:100%;height:100%;border:0;background:#fff}
 #frames iframe[hidden]{display:none}
@@ -80,6 +100,39 @@ nav .reset[hidden]{display:none}
   <span class="brand" aria-hidden="true"><span class="brand-icon"><svg width="14" height="14" viewBox="0 0 14 14" fill="#fff"><rect x="0" y="0" width="6" height="6" rx="1.5"/><rect x="8" y="0" width="6" height="6" rx="1.5"/><rect x="0" y="8" width="6" height="6" rx="1.5"/><rect x="8" y="8" width="6" height="6" rx="1.5" opacity=".55"/></svg></span>業務アプリ</span>
 </nav>
 <div id="frames"></div>
+<dialog id="data" aria-labelledby="data-title">
+  <h2 id="data-title">バックアップ・データ削除</h2>
+  <section>
+    <h3>一括バックアップ</h3>
+    <p>5つのアプリのデータ（患者マスタ・登録データ・設定）を1つのファイルに保存します。
+      パスワードを入れると暗号化して保存します（<b>忘れると復元できません</b>）。パスワードなしのファイルは誰でも中身を読めるので、保管場所に注意してください。<br>
+      ※ 指示書の郵便番号データと、ワクチン接種管理の保存先フォルダの設定は含みません（復元後に設定し直してください）。</p>
+    <div class="row">
+      <input type="password" id="data-pw" placeholder="パスワード（任意）" autocomplete="new-password">
+      <input type="password" id="data-pw2" placeholder="パスワード（確認）" autocomplete="new-password">
+      <button type="button" class="primary" id="data-backup">バックアップを保存</button>
+    </div>
+  </section>
+  <section>
+    <h3>一括復元</h3>
+    <p>一括バックアップのファイルから、バックアップに入っているアプリのデータを<b>すべて置き換えて</b>戻します。
+      暗号化したファイルは、上のパスワード欄に入力してから選んでください。各アプリ個別のバックアップファイルは、それぞれのアプリで復元してください。</p>
+    <div class="row"><button type="button" id="data-restore">ファイルを選んで復元</button></div>
+    <input type="file" id="data-restore-input" accept=".json" hidden>
+  </section>
+  <section class="danger">
+    <h3>ブラウザデータの一括削除</h3>
+    <p>このPCのブラウザに保存されている、選んだアプリのデータをすべて削除します（共用PCで使い終わったときなど）。元に戻せません。<br>
+      ほかのツールのデータや、タブの並び順などのこの画面の設定は削除しません。</p>
+    <div class="apps" id="data-apps"></div>
+    <div class="row">
+      <label><input type="checkbox" id="data-del-backup" checked> 削除する前にバックアップを保存する（上のパスワードを使います）</label>
+    </div>
+    <div class="row" style="margin-top:8px"><button type="button" class="danger" id="data-delete">選んだアプリのデータを削除</button></div>
+  </section>
+  <div class="status" id="data-status" role="status"></div>
+  <div class="foot"><button type="button" id="data-close">閉じる</button></div>
+</dialog>
 <dialog id="bulk" aria-labelledby="bulk-title">
   <h2 id="bulk-title">患者マスタ一括取込</h2>
   <div class="body">
@@ -155,8 +208,14 @@ nav .reset[hidden]{display:none}
   importBtn.className = 'import';
   importBtn.textContent = '患者マスタ一括取込';
   importBtn.title = '1つの Excel ファイルを、すべてのアプリの患者マスタにまとめて取り込みます';
+  var dataBtn = document.createElement('button');
+  dataBtn.type = 'button';
+  dataBtn.className = 'import';
+  dataBtn.textContent = 'バックアップ・データ削除';
+  dataBtn.title = 'すべてのアプリのデータをまとめてバックアップ・復元・削除します';
   tools.appendChild(resetBtn);
   tools.appendChild(importBtn);
+  tools.appendChild(dataBtn);
   nav.appendChild(tools);
 
   function tabEls(){ return Array.prototype.slice.call(nav.querySelectorAll('button.tab')); }
@@ -308,6 +367,8 @@ nav .reset[hidden]{display:none}
     if (!h || h.kind !== 'directory') { var e = new Error('保存先フォルダが設定されていません'); e.name = 'NotFoundError'; throw e; }
     return h;
   }
+  // フォルダ窓口を使ってよいアプリと、その保存場所（ワクチン接種管理と同じ値）
+  var FS_CFG = { vaccine: { db: 'vaccineKanri.fs', store: 'h', key: 'backupDir', pickerId: 'vaccineKanriBackup' } };
   var FS_OPS = {
     hello: function(){ return true; },
     status: async function(a, cfg){ try { return { name: (await savedDir(cfg)).name }; } catch(e){ return null; } },
@@ -342,11 +403,13 @@ nav .reset[hidden]{display:none}
   };
   window.addEventListener('message', async function(e){
     var d = e.data;
-    if (!d || d.portalFs !== 1 || !FS_OPS.hasOwnProperty(d.op) || !d.cfg) return;
-    // 自分のタブの中のアプリからの依頼だけ受け付ける
-    if (!Object.keys(frames).some(function(k){ return frames[k].contentWindow === e.source; })) return;
+    if (!d || d.portalFs !== 1 || !FS_OPS.hasOwnProperty(d.op)) return;
+    // 依頼元のタブを特定し、そのアプリ用に決めてある保存場所だけを使う（タブから送られた設定は使わない）
+    var appId = Object.keys(frames).find(function(k){ return frames[k].contentWindow === e.source; });
+    var cfg = appId && FS_CFG[appId];
+    if (!cfg) return;
     var msg;
-    try { msg = { portalFs: 1, id: d.id, ok: true, v: await FS_OPS[d.op](d.args || {}, d.cfg) }; }
+    try { msg = { portalFs: 1, id: d.id, ok: true, v: await FS_OPS[d.op](d.args || {}, cfg) }; }
     catch(err){ msg = { portalFs: 1, id: d.id, ok: false, v: { name: err && err.name, message: err && err.message } }; }
     e.source.postMessage(msg, '*');
   });
@@ -441,6 +504,225 @@ nav .reset[hidden]{display:none}
     bulkPick.disabled = bulkClose.disabled = false;
     bulkList.querySelectorAll('input').forEach(function(x){ x.disabled = false; });
     bulkPick.textContent = '別のファイルを取り込む';
+  });
+
+  // ---- 一括バックアップ・復元・削除 ----
+  // パソコン内のファイルとして開くと、5つのアプリと このページは同じ保存領域を使うので、ここから直接読み書きできる。
+  // 同じ PC の別のツールのデータを消さないよう、各アプリが使う名前のものだけを対象にする。
+  var DATA_APPS = {
+    'stock':      { ls: ['abx-stock-control-'],   idb: [] },
+    'order':      { ls: ['homeTransitionOrder.'], idb: ['homeTransitionOrder'] },  // IndexedDB は郵便番号データ
+    'visit-list': { ls: ['visitPatientList.'],    idb: [] },
+    'vaccine':    { ls: ['vaccineKanri.'],        idb: ['vaccineKanri.fs'] },      // IndexedDB は保存先フォルダの記録
+    'jisan':      { ls: ['jisan-yaku-'],          idb: ['jisan-yaku-db'] }
+  };
+  // バックアップに入れない IndexedDB（郵便番号データは公開データで読み込み直せる・フォルダの記録はファイルにできない）
+  var IDB_NO_BACKUP = ['homeTransitionOrder', 'vaccineKanri.fs'];
+  var BACKUP_FORMAT = 'business-app-backup';
+  var dataDlg = document.getElementById('data'), dataStatus = document.getElementById('data-status');
+  var dataBusy = false;
+
+  function lsKeys(appId){
+    var pre = DATA_APPS[appId].ls, out = [];
+    for (var i = 0; i < localStorage.length; i++) {
+      var k = localStorage.key(i);
+      if (pre.some(function(p){ return k.indexOf(p) === 0; })) out.push(k);
+    }
+    return out;
+  }
+  function reqP(r){ return new Promise(function(res, rej){ r.onsuccess = function(){ res(r.result); }; r.onerror = function(){ rej(r.error); }; }); }
+  async function idbExists(name){
+    if (!indexedDB.databases) return true;
+    return (await indexedDB.databases()).some(function(d){ return d.name === name; });
+  }
+  async function dumpIdb(name){
+    if (!(await idbExists(name))) return null;
+    var db = await reqP(indexedDB.open(name));
+    try {
+      var out = { version: db.version, stores: {} };
+      for (var i = 0; i < db.objectStoreNames.length; i++) {
+        var sn = db.objectStoreNames[i], st = db.transaction(sn, 'readonly').objectStore(sn);
+        var keys = await reqP(st.getAllKeys());
+        st = db.transaction(sn, 'readonly').objectStore(sn);
+        var vals = await reqP(st.getAll());
+        out.stores[sn] = {
+          keyPath: st.keyPath, autoIncrement: st.autoIncrement,
+          indexes: Array.prototype.map.call(st.indexNames, function(n){ var x = st.index(n); return { name: n, keyPath: x.keyPath, unique: x.unique, multiEntry: x.multiEntry }; }),
+          records: keys.map(function(k, j){ return [k, vals[j]]; })
+        };
+      }
+      return out;
+    } finally { db.close(); }
+  }
+  function deleteIdb(name){
+    return new Promise(function(res, rej){
+      var r = indexedDB.deleteDatabase(name), t = setTimeout(function(){ rej(new Error('「' + name + '」を使用中のため削除できませんでした。ほかのタブ・ウィンドウでアプリを開いていたら閉じてください。')); }, 8000);
+      r.onsuccess = function(){ clearTimeout(t); res(); };
+      r.onerror = function(){ clearTimeout(t); rej(r.error); };
+    });
+  }
+  async function writeIdb(name, dump){
+    await deleteIdb(name);
+    var r = indexedDB.open(name, dump.version);
+    r.onupgradeneeded = function(){
+      Object.keys(dump.stores).forEach(function(sn){
+        var d = dump.stores[sn], o = { autoIncrement: !!d.autoIncrement };
+        if (d.keyPath != null) o.keyPath = d.keyPath;
+        var st = r.result.createObjectStore(sn, o);
+        (d.indexes || []).forEach(function(x){ st.createIndex(x.name, x.keyPath, { unique: x.unique, multiEntry: x.multiEntry }); });
+      });
+    };
+    var db = await reqP(r);
+    try {
+      for (var sn in dump.stores) {
+        var d = dump.stores[sn], tx = db.transaction(sn, 'readwrite'), st = tx.objectStore(sn);
+        d.records.forEach(function(rec){ if (d.keyPath != null) st.put(rec[1]); else st.put(rec[1], rec[0]); });
+        await new Promise(function(res, rej){ tx.oncomplete = res; tx.onerror = tx.onabort = function(){ rej(tx.error); }; });
+      }
+    } finally { db.close(); }
+  }
+
+  // ---- 暗号化（パスワード → PBKDF2 → AES-GCM） ----
+  var KDF_ITER = 310000;
+  function b64(buf){ var b = new Uint8Array(buf), s = ''; for (var i = 0; i < b.length; i += 0x8000) s += String.fromCharCode.apply(null, b.subarray(i, i + 0x8000)); return btoa(s); }
+  function unb64(s){ var t = atob(s), b = new Uint8Array(t.length); for (var i = 0; i < t.length; i++) b[i] = t.charCodeAt(i); return b; }
+  async function aesKey(pw, salt, iter){
+    var base = await crypto.subtle.importKey('raw', new TextEncoder().encode(pw), 'PBKDF2', false, ['deriveKey']);
+    return crypto.subtle.deriveKey({ name: 'PBKDF2', salt: salt, iterations: iter, hash: 'SHA-256' }, base, { name: 'AES-GCM', length: 256 }, false, ['encrypt', 'decrypt']);
+  }
+  async function encrypt(text, pw){
+    var salt = crypto.getRandomValues(new Uint8Array(16)), iv = crypto.getRandomValues(new Uint8Array(12));
+    var ct = await crypto.subtle.encrypt({ name: 'AES-GCM', iv: iv }, await aesKey(pw, salt, KDF_ITER), new TextEncoder().encode(text));
+    return { format: BACKUP_FORMAT, version: 1, encrypted: 'AES-GCM', kdf: 'PBKDF2-SHA256', iterations: KDF_ITER, salt: b64(salt), iv: b64(iv), data: b64(ct) };
+  }
+  async function decrypt(env, pw){
+    var key = await aesKey(pw, unb64(env.salt), env.iterations);
+    try { return new TextDecoder().decode(await crypto.subtle.decrypt({ name: 'AES-GCM', iv: unb64(env.iv) }, key, unb64(env.data))); }
+    catch(e) { throw new Error('パスワードが違うか、ファイルが壊れています。'); }
+  }
+
+  function setStatus(cls, msg){ dataStatus.className = 'status' + (cls ? ' ' + cls : ''); dataStatus.textContent = msg; }
+  function stamp(){ var d = new Date(), z = function(n){ return ('0' + n).slice(-2); }; return d.getFullYear() + z(d.getMonth() + 1) + z(d.getDate()) + '_' + z(d.getHours()) + z(d.getMinutes()); }
+  function readPw(){
+    var a = document.getElementById('data-pw').value, b = document.getElementById('data-pw2').value;
+    if (a !== b) throw new Error('パスワードと確認用のパスワードが一致しません。');
+    return a;
+  }
+  async function makeBackup(appIds){
+    var pw = readPw();
+    var data = { format: BACKUP_FORMAT, version: 1, createdAt: new Date().toISOString(), apps: appIds, localStorage: {}, indexedDB: {} };
+    for (var i = 0; i < appIds.length; i++) {
+      lsKeys(appIds[i]).forEach(function(k){ data.localStorage[k] = localStorage.getItem(k); });
+      var dbs = DATA_APPS[appIds[i]].idb.filter(function(n){ return IDB_NO_BACKUP.indexOf(n) < 0; });
+      for (var j = 0; j < dbs.length; j++) { var d = await dumpIdb(dbs[j]); if (d) data.indexedDB[dbs[j]] = d; }
+    }
+    var text = JSON.stringify(data);
+    if (pw) text = JSON.stringify(await encrypt(text, pw));
+    var name = '業務アプリ_一括バックアップ_' + stamp() + (pw ? '_暗号化' : '') + '.json';
+    var a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob([text], { type: 'application/json' }));
+    a.download = name;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(function(){ URL.revokeObjectURL(a.href); }, 60000);
+    return { name: name, encrypted: !!pw, keys: Object.keys(data.localStorage).length, dbs: Object.keys(data.indexedDB).length };
+  }
+  // 復元・削除の前に、開いているアプリを閉じる（画面の中の古いデータで上書きされないように）
+  function closeAllFrames(){
+    Object.keys(frames).forEach(function(k){ frames[k].remove(); delete frames[k]; });
+  }
+  function checkedApps(){
+    return Array.prototype.filter.call(document.querySelectorAll('#data-apps input'), function(x){ return x.checked; }).map(function(x){ return x.value; });
+  }
+  function busy(on){
+    dataBusy = on;
+    dataDlg.querySelectorAll('button, input').forEach(function(x){ x.disabled = on; });
+  }
+
+  dataBtn.addEventListener('click', function(){
+    var box = document.getElementById('data-apps');
+    box.innerHTML = '';
+    APPS.forEach(function(a){
+      if (!DATA_APPS[a.id]) return;
+      var l = document.createElement('label'), c = document.createElement('input');
+      c.type = 'checkbox'; c.value = a.id; c.checked = true;
+      l.appendChild(c); l.appendChild(document.createTextNode(a.label));
+      box.appendChild(l);
+    });
+    setStatus('', '');
+    dataDlg.showModal();
+  });
+  document.getElementById('data-close').addEventListener('click', function(){ dataDlg.close(); });
+  dataDlg.addEventListener('cancel', function(e){ if (dataBusy) e.preventDefault(); });
+
+  document.getElementById('data-backup').addEventListener('click', async function(){
+    busy(true); setStatus('', 'バックアップを作成しています…');
+    try {
+      var r = await makeBackup(Object.keys(DATA_APPS));
+      setStatus('ok', '✓ バックアップを保存しました: ' + r.name + (r.encrypted ? '（暗号化）' : '（暗号化なし）') + '\nブラウザのダウンロード先に保存されます。');
+    } catch(e) { setStatus('ng', '✕ ' + e.message); }
+    busy(false);
+  });
+
+  var restoreInput = document.getElementById('data-restore-input');
+  document.getElementById('data-restore').addEventListener('click', function(){ restoreInput.click(); });
+  restoreInput.addEventListener('change', async function(){
+    var file = restoreInput.files[0];
+    restoreInput.value = '';
+    if (!file) return;
+    busy(true); setStatus('', '読み込んでいます…');
+    try {
+      var obj = JSON.parse(await file.text());
+      if (!obj || obj.format !== BACKUP_FORMAT) throw new Error('一括バックアップのファイルではありません。各アプリ個別のバックアップは、それぞれのアプリで復元してください。');
+      if (obj.encrypted) {
+        var pw = document.getElementById('data-pw').value;
+        if (!pw) throw new Error('暗号化されたファイルです。パスワード欄に入力してから、もう一度選んでください。');
+        obj = JSON.parse(await decrypt(obj, pw));
+      }
+      var ids = (obj.apps || []).filter(function(id){ return DATA_APPS[id]; });
+      var labels = ids.map(function(id){ return APPS.find(function(a){ return a.id === id; }).label; });
+      if (!confirm(new Date(obj.createdAt).toLocaleString('ja-JP') + ' のバックアップで、次のアプリのデータをすべて置き換えます。\n\n' + labels.join('\n') + '\n\nよろしいですか？')) { setStatus('', ''); busy(false); return; }
+      closeAllFrames();
+      for (var i = 0; i < ids.length; i++) {
+        lsKeys(ids[i]).forEach(function(k){ localStorage.removeItem(k); });
+        var dbs = DATA_APPS[ids[i]].idb.filter(function(n){ return IDB_NO_BACKUP.indexOf(n) < 0; });
+        for (var j = 0; j < dbs.length; j++) {
+          if (obj.indexedDB[dbs[j]]) await writeIdb(dbs[j], obj.indexedDB[dbs[j]]);
+          else if (await idbExists(dbs[j])) await deleteIdb(dbs[j]);
+        }
+      }
+      Object.keys(obj.localStorage).forEach(function(k){
+        if (ids.some(function(id){ return DATA_APPS[id].ls.some(function(p){ return k.indexOf(p) === 0; }); })) localStorage.setItem(k, obj.localStorage[k]);
+      });
+      alert('復元しました。画面を読み込み直します。');
+      location.reload();
+    } catch(e) { setStatus('ng', '✕ ' + e.message); busy(false); }
+  });
+
+  document.getElementById('data-delete').addEventListener('click', async function(){
+    var ids = checkedApps();
+    if (!ids.length) { setStatus('ng', '削除するアプリを選んでください。'); return; }
+    var labels = ids.map(function(id){ return APPS.find(function(a){ return a.id === id; }).label; });
+    var withBackup = document.getElementById('data-del-backup').checked;
+    busy(true);
+    try {
+      if (withBackup) {
+        setStatus('', 'バックアップを作成しています…');
+        var r = await makeBackup(ids);
+        setStatus('ok', '✓ バックアップを保存しました: ' + r.name + (r.encrypted ? '（暗号化）' : '（暗号化なし）'));
+        if (!confirm('バックアップファイル「' + r.name + '」が保存されたことを確認してください。\n（ブラウザのダウンロード一覧で確認できます）\n\n保存を確認できたら「OK」で削除に進みます。')) { busy(false); return; }
+      }
+      if (!confirm('このPCのブラウザから、次のアプリのデータをすべて削除します。元に戻せません。\n\n' + labels.join('\n') + '\n\n削除しますか？')) { busy(false); return; }
+      closeAllFrames();
+      for (var i = 0; i < ids.length; i++) {
+        lsKeys(ids[i]).forEach(function(k){ localStorage.removeItem(k); });
+        for (var j = 0; j < DATA_APPS[ids[i]].idb.length; j++) {
+          var n = DATA_APPS[ids[i]].idb[j];
+          if (await idbExists(n)) await deleteIdb(n);
+        }
+      }
+      alert('削除しました。画面を読み込み直します。');
+      location.reload();
+    } catch(e) { setStatus('ng', '✕ ' + e.message); busy(false); }
   });
 
   window.addEventListener('hashchange', function(){ show(location.hash.slice(1)); });
