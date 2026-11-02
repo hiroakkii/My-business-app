@@ -116,8 +116,11 @@ nav .reset[hidden]{display:none}
   <section>
     <h3>一括復元</h3>
     <p>一括バックアップのファイルから、バックアップに入っているアプリのデータを<b>すべて置き換えて</b>戻します。
-      暗号化したファイルは、上のパスワード欄に入力してから選んでください。各アプリ個別のバックアップファイルは、それぞれのアプリで復元してください。</p>
-    <div class="row"><button type="button" id="data-restore">ファイルを選んで復元</button></div>
+      暗号化したファイルは、バックアップしたときのパスワードを入れてから選んでください。各アプリ個別のバックアップファイルは、それぞれのアプリで復元してください。</p>
+    <div class="row">
+      <input type="password" id="data-rpw" placeholder="パスワード（暗号化したファイルのみ）" autocomplete="current-password" style="width:17em">
+      <button type="button" id="data-restore">ファイルを選んで復元</button>
+    </div>
     <input type="file" id="data-restore-input" accept=".json" hidden>
   </section>
   <section class="danger">
@@ -588,32 +591,48 @@ nav .reset[hidden]{display:none}
       return out;
     } finally { db.close(); }
   }
-  function deleteIdb(name){
-    return new Promise(function(res, rej){
-      var r = indexedDB.deleteDatabase(name), t = setTimeout(function(){ rej(new Error('「' + name + '」を使用中のため削除できませんでした。ほかのタブ・ウィンドウでアプリを開いていたら閉じてください。')); }, 8000);
-      r.onsuccess = function(){ clearTimeout(t); res(); };
-      r.onblocked = function(){ /* ほかの画面が閉じるのを待つ（8秒で打ち切り） */ };
-      r.onerror = function(){ clearTimeout(t); rej(r.error); };
-    });
-  }
-  async function writeIdb(name, dump){
-    await deleteIdb(name);
-    var r = indexedDB.open(name, dump.version);
-    r.onupgradeneeded = function(){
-      Object.keys(dump.stores).forEach(function(sn){
-        var d = dump.stores[sn], o = { autoIncrement: !!d.autoIncrement };
-        if (d.keyPath != null) o.keyPath = d.keyPath;
-        var st = r.result.createObjectStore(sn, o);
-        (d.indexes || []).forEach(function(x){ st.createIndex(x.name, x.keyPath, { unique: x.unique, multiEntry: x.multiEntry }); });
-      });
-    };
-    var db = await reqP(r);
-    try {
-      for (var sn in dump.stores) {
-        var d = dump.stores[sn], tx = db.transaction(sn, 'readwrite'), st = tx.objectStore(sn);
-        d.records.forEach(function(rec){ if (d.keyPath != null) st.put(rec[1]); else st.put(rec[1], rec[0]); });
-        await new Promise(function(res, rej){ tx.oncomplete = res; tx.onerror = tx.onabort = function(){ rej(tx.error); }; });
+  // データベースの中身を置き換える（dump が null なら空にする）。
+  // データベース自体は消さずに中身だけを入れ替えるので、アプリが開いたままでも待たされない。
+  async function replaceIdb(name, dump){
+    var exists = await idbExists(name);
+    if (!exists && !dump) return;
+    var db;
+    if (exists) {
+      db = await openIdb(name);
+      var fits = !dump || (db.version === dump.version && Object.keys(dump.stores).every(function(sn){
+        if (!db.objectStoreNames.contains(sn)) return false;
+        var st = db.transaction(sn, 'readonly').objectStore(sn);
+        return JSON.stringify(st.keyPath) === JSON.stringify(dump.stores[sn].keyPath);
+      }));
+      if (!fits) {
+        db.close();
+        throw new Error('「' + name + '」の形式がバックアップと違うため復元できません（アプリの版が違う可能性があります）。');
       }
+    } else {
+      // まだ無いときは、バックアップと同じ形で作る
+      var r = indexedDB.open(name, dump.version);
+      r.onupgradeneeded = function(){
+        Object.keys(dump.stores).forEach(function(sn){
+          var d = dump.stores[sn], o = { autoIncrement: !!d.autoIncrement };
+          if (d.keyPath != null) o.keyPath = d.keyPath;
+          var st = r.result.createObjectStore(sn, o);
+          (d.indexes || []).forEach(function(x){ st.createIndex(x.name, x.keyPath, { unique: x.unique, multiEntry: x.multiEntry }); });
+        });
+      };
+      db = await reqP(r, '「' + name + '」の作成');
+    }
+    try {
+      var names = Array.prototype.slice.call(db.objectStoreNames);
+      if (!names.length) return;
+      // 全部の入れ物を1回の書き込みで処理する（途中で失敗したら全部元のまま）
+      var tx = db.transaction(names, 'readwrite');
+      names.forEach(function(sn){
+        var st = tx.objectStore(sn);
+        st.clear();
+        var d = dump && dump.stores[sn];
+        if (d) d.records.forEach(function(rec){ if (d.keyPath != null) st.put(rec[1]); else st.put(rec[1], rec[0]); });
+      });
+      await withTimeout(new Promise(function(res, rej){ tx.oncomplete = res; tx.onerror = tx.onabort = function(){ rej(tx.error || new Error('書き込みが取り消されました')); }; }), '「' + name + '」への書き込み');
     } finally { db.close(); }
   }
 
@@ -678,6 +697,11 @@ nav .reset[hidden]{display:none}
   function closeAllFrames(){
     Object.keys(frames).forEach(function(k){ frames[k].remove(); delete frames[k]; });
   }
+  // 失敗したときは、閉じたアプリを開き直す
+  function reopenCurrent(){
+    var id = location.hash.slice(1);
+    show(APPS.some(function(a){ return a.id === id; }) ? id : APPS[0].id);
+  }
   function checkedApps(){
     return Array.prototype.filter.call(document.querySelectorAll('#data-apps input'), function(x){ return x.checked; }).map(function(x){ return x.value; });
   }
@@ -723,28 +747,38 @@ nav .reset[hidden]{display:none}
       var obj = JSON.parse(await file.text());
       if (!obj || obj.format !== BACKUP_FORMAT) throw new Error('一括バックアップのファイルではありません。各アプリ個別のバックアップは、それぞれのアプリで復元してください。');
       if (obj.encrypted) {
-        var pw = document.getElementById('data-pw').value;
-        if (!pw) throw new Error('暗号化されたファイルです。パスワード欄に入力してから、もう一度選んでください。');
-        obj = JSON.parse(await decrypt(obj, pw));
+        var pw = document.getElementById('data-rpw').value;
+        if (!pw) throw new Error('暗号化されたファイルです。「ファイルを選んで復元」の横にパスワードを入れてから、もう一度選んでください。');
+        if (!(window.crypto && crypto.subtle)) throw new Error('このブラウザ・開き方では暗号化したファイルを開けません。Microsoft Edge / Google Chrome で開いてください。');
+        setStatus('', 'パスワードを確認しています…');
+        obj = JSON.parse(await withTimeout(decrypt(obj, pw), '復号', 60000));
       }
+      if (!obj.localStorage || !obj.indexedDB) throw new Error('バックアップファイルの中身が読み取れません。');
       var ids = (obj.apps || []).filter(function(id){ return DATA_APPS[id]; });
       var labels = ids.map(function(id){ return APPS.find(function(a){ return a.id === id; }).label; });
       if (!confirm(new Date(obj.createdAt).toLocaleString('ja-JP') + ' のバックアップで、次のアプリのデータをすべて置き換えます。\n\n' + labels.join('\n') + '\n\nよろしいですか？')) { setStatus('', ''); busy(false); return; }
       closeAllFrames();
+      // ① 先にデータベース（失敗する可能性がある方）を書き戻す。失敗したらほかのデータには触れない
       for (var i = 0; i < ids.length; i++) {
-        lsKeys(ids[i]).forEach(function(k){ localStorage.removeItem(k); });
         var dbs = DATA_APPS[ids[i]].idb.filter(function(n){ return IDB_NO_BACKUP.indexOf(n) < 0; });
         for (var j = 0; j < dbs.length; j++) {
-          if (obj.indexedDB[dbs[j]]) await writeIdb(dbs[j], obj.indexedDB[dbs[j]]);
-          else if (await idbExists(dbs[j])) await deleteIdb(dbs[j]);
+          setStatus('', '復元しています…（' + appLabel(ids[i]) + '）');
+          try { await replaceIdb(dbs[j], obj.indexedDB[dbs[j]] || null); }
+          catch(err) { throw new Error(appLabel(ids[i]) + ' のデータを復元できませんでした。ほかのアプリのデータは変更していません。\n' + (err && err.message || err)); }
         }
       }
+      // ② localStorage を置き換える
+      ids.forEach(function(id){ lsKeys(id).forEach(function(k){ localStorage.removeItem(k); }); });
       Object.keys(obj.localStorage).forEach(function(k){
         if (ids.some(function(id){ return DATA_APPS[id].ls.some(function(p){ return k.indexOf(p) === 0; }); })) localStorage.setItem(k, obj.localStorage[k]);
       });
       alert('復元しました。画面を読み込み直します。');
       location.reload();
-    } catch(e) { setStatus('ng', '✕ ' + e.message); busy(false); }
+    } catch(e) {
+      setStatus('ng', '✕ ' + (e && e.message || e));
+      busy(false);
+      reopenCurrent();
+    }
   });
 
   document.getElementById('data-delete').addEventListener('click', async function(){
@@ -762,16 +796,24 @@ nav .reset[hidden]{display:none}
       }
       if (!confirm('このPCのブラウザから、次のアプリのデータをすべて削除します。元に戻せません。\n\n' + labels.join('\n') + '\n\n削除しますか？')) { busy(false); return; }
       closeAllFrames();
+      var failed = [];
       for (var i = 0; i < ids.length; i++) {
+        setStatus('', '削除しています…（' + appLabel(ids[i]) + '）');
         lsKeys(ids[i]).forEach(function(k){ localStorage.removeItem(k); });
         for (var j = 0; j < DATA_APPS[ids[i]].idb.length; j++) {
-          var n = DATA_APPS[ids[i]].idb[j];
-          if (await idbExists(n)) await deleteIdb(n);
+          try { await replaceIdb(DATA_APPS[ids[i]].idb[j], null); }   // 中身を空にする
+          catch(err) { failed.push(appLabel(ids[i]) + ': ' + (err && err.message || err)); }
         }
+      }
+      if (failed.length) {
+        setStatus('ng', '✕ 一部のデータを削除できませんでした。\n' + failed.join('\n'));
+        busy(false);
+        reopenCurrent();
+        return;
       }
       alert('削除しました。画面を読み込み直します。');
       location.reload();
-    } catch(e) { setStatus('ng', '✕ ' + e.message); busy(false); }
+    } catch(e) { setStatus('ng', '✕ ' + (e && e.message || e)); busy(false); reopenCurrent(); }
   });
 
   window.addEventListener('hashchange', function(){ show(location.hash.slice(1)); });
