@@ -17,8 +17,14 @@ body{display:flex;flex-direction:column;
   font:14px/1.4 "Yu Gothic UI","Meiryo UI","Hiragino Kaku Gothic ProN",sans-serif}
 nav{flex:0 0 auto;display:flex;align-items:flex-end;gap:2px;background:var(--bar);
   padding:6px 8px 0;overflow-x:auto;scrollbar-width:thin}
-nav .brand{color:var(--bar-ink);font-weight:600;font-size:13px;opacity:.75;
-  padding:0 12px 9px 4px;white-space:nowrap}
+/* 左上のアプリ名：タブと見分けがつくよう、アイコン付きの見出しにして区切り線で分ける */
+nav .brand{flex:0 0 auto;align-self:center;display:flex;align-items:center;gap:8px;
+  margin:0 10px 6px 2px;padding:0 14px 0 0;border-right:1px solid rgba(255,255,255,.22);
+  color:#fff;font-size:15px;font-weight:700;letter-spacing:.06em;white-space:nowrap;
+  cursor:default;user-select:none;-webkit-user-select:none}
+nav .brand-icon{display:grid;place-items:center;width:26px;height:26px;border-radius:7px;
+  background:var(--accent);box-shadow:inset 0 0 0 1px rgba(255,255,255,.18)}
+nav .brand-icon svg{display:block}
 nav button{appearance:none;border:0;border-radius:6px 6px 0 0;background:transparent;
   color:var(--bar-ink);font:inherit;font-weight:600;padding:8px 16px 9px;cursor:pointer;
   white-space:nowrap;border-top:3px solid transparent}
@@ -48,7 +54,7 @@ nav .reset[hidden]{display:none}
 </head>
 <body>
 <nav role="tablist" aria-label="アプリ切り替え">
-  <span class="brand">業務アプリ</span>
+  <span class="brand" aria-hidden="true"><span class="brand-icon"><svg width="14" height="14" viewBox="0 0 14 14" fill="#fff"><rect x="0" y="0" width="6" height="6" rx="1.5"/><rect x="8" y="0" width="6" height="6" rx="1.5"/><rect x="0" y="8" width="6" height="6" rx="1.5"/><rect x="8" y="8" width="6" height="6" rx="1.5" opacity=".55"/></svg></span>業務アプリ</span>
 </nav>
 <div id="frames"></div>
 <script>
