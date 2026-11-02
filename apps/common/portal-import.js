@@ -29,6 +29,12 @@
       summary: function () { return text('#preview-info') + ' ' + text('#mapping-warnings'); }
     },
     vaccine: {
+      // まとめ画面で一括バックアップしたら、このアプリでバックアップしたときと同じように記録する
+      // （「未保存の変更あり」の表示と、閉じるときの確認を出さないようにする）
+      onBackedUp: function (label) {
+        /* global state, persist, renderHeader */
+        state.lastBackup = label; state.dirty = false; persist(false); renderHeader();
+      },
       input: '#fileMaster', dialog: '#dlg', ok: '#mOk', closeDialogsFirst: true,
       ready: function () { return /患者マスタの読み込み/.test(text('#dlgTitle')); },
       summary: function () { var m = text('#dlgBody').match(/読み込み件数[^\n]*/); return m ? m[0] : ''; }
@@ -104,6 +110,11 @@
     if (e.source !== window.parent || !d || d.portalImport !== 1) return;
     var reply = function (v) { v.portalImport = 1; v.id = d.id; window.parent.postMessage(v, '*'); };
     if (d.op === 'ping') { reply({ ok: true, app: APP }); return; }
+    if (d.op === 'backedUp') {
+      try { if (cfg.onBackedUp) cfg.onBackedUp(String(d.label || '')); reply({ ok: true }); }
+      catch (err) { reply({ ok: false, message: err && err.message || String(err) }); }
+      return;
+    }
     if (d.op !== 'run' || !(d.file instanceof Blob)) return;
     if (busy) { reply({ ok: false, message: '取り込み中です。' }); return; }
     busy = true;

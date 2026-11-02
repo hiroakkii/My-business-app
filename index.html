@@ -673,11 +673,35 @@ nav .reset[hidden]{display:none}
     if (a !== b) throw new Error('パスワードと確認用のパスワードが一致しません。');
     return a;
   }
+  // バックアップしたことを各アプリにも記録する（ワクチン接種管理は、記録が無いと「未保存の変更あり」と警告するため）
+  var BACKUP_MARK = {
+    vaccine: { key: 'vaccineKanri.v1', apply: function(st, label){ st.lastBackup = label; st.dirty = false; } }
+  };
+  function backupLabel(d){
+    return d.toLocaleString('ja-JP', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' }) + '（一括）';
+  }
+  function markInJson(text, appId, label){
+    try { var st = JSON.parse(text); BACKUP_MARK[appId].apply(st, label); return JSON.stringify(st); } catch(e) { return text; }
+  }
+  async function markBackedUp(appIds, label){
+    for (var i = 0; i < appIds.length; i++) {
+      var id = appIds[i], m = BACKUP_MARK[id];
+      if (!m) continue;
+      if (frames[id]) {
+        // 開いているアプリには、アプリ自身に記録してもらう（画面の表示も更新される）
+        var r = (await frameReady(id)) ? await askFrame(id, { op: 'backedUp', label: label }, 5000) : null;
+        if (r && r.ok) continue;
+      }
+      var v = localStorage.getItem(m.key);
+      if (v != null) localStorage.setItem(m.key, markInJson(v, id, label));
+    }
+  }
   function appLabel(id){ var a = APPS.find(function(x){ return x.id === id; }); return a ? a.label : id; }
   async function makeBackup(appIds){
     var pw = readPw();
     if (pw && !(window.crypto && crypto.subtle)) throw new Error('このブラウザ・開き方では暗号化が使えません。パスワードを空にして保存するか、Microsoft Edge / Google Chrome で開いてください。');
-    var data = { format: BACKUP_FORMAT, version: 1, createdAt: new Date().toISOString(), apps: appIds, localStorage: {}, indexedDB: {} };
+    var now = new Date(), label = backupLabel(now);
+    var data = { format: BACKUP_FORMAT, version: 1, createdAt: now.toISOString(), apps: appIds, localStorage: {}, indexedDB: {} };
     for (var i = 0; i < appIds.length; i++) {
       setStatus('', 'バックアップを作成しています…（' + appLabel(appIds[i]) + ' のデータを読み込み中）');
       try {
@@ -688,6 +712,11 @@ nav .reset[hidden]{display:none}
         throw new Error(appLabel(appIds[i]) + ' のデータを読み込めませんでした。\n' + (e && e.message || e));
       }
     }
+    // バックアップの中のデータも「バックアップ済み」にしておく（復元したときに警告が出ないように）
+    Object.keys(BACKUP_MARK).forEach(function(id){
+      var k = BACKUP_MARK[id].key;
+      if (data.localStorage[k] != null) data.localStorage[k] = markInJson(data.localStorage[k], id, label);
+    });
     setStatus('', 'バックアップを作成しています…（ファイルにまとめています）');
     var text = JSON.stringify(data);
     if (pw) {
@@ -702,6 +731,7 @@ nav .reset[hidden]{display:none}
     a.download = name;
     document.body.appendChild(a); a.click(); a.remove();
     setTimeout(function(){ URL.revokeObjectURL(a.href); }, 60000);
+    try { await markBackedUp(appIds, label); } catch(e) { /* 記録できなくてもバックアップ自体は保存済み */ }
     return { name: name, encrypted: !!pw, keys: Object.keys(data.localStorage).length, dbs: Object.keys(data.indexedDB).length };
   }
   // 復元・削除の前に、開いているアプリを閉じる（画面の中の古いデータで上書きされないように）
