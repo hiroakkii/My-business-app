@@ -1,0 +1,114 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<!-- このページ自体は外部と通信しません。各アプリの通信設定は、それぞれのアプリの index.html に従います -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; frame-src 'self'; img-src 'self' data:; connect-src 'none'; form-action 'none'; object-src 'none'; base-uri 'none'">
+<title>業務アプリ</title>
+<style>
+:root{
+  --bar:#24364b; --bar-ink:#e6edf5; --tab-hover:#33495f;
+  --active-bg:#f4f6f8; --active-ink:#1f2933; --accent:#3d8bd9;
+}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%;overflow:hidden;background:#f4f6f8}
+body{display:flex;flex-direction:column;
+  font:14px/1.4 "Yu Gothic UI","Meiryo UI","Hiragino Kaku Gothic ProN",sans-serif}
+nav{flex:0 0 auto;display:flex;align-items:flex-end;gap:2px;background:var(--bar);
+  padding:6px 8px 0;overflow-x:auto;scrollbar-width:thin}
+nav .brand{color:var(--bar-ink);font-weight:600;font-size:13px;opacity:.75;
+  padding:0 12px 9px 4px;white-space:nowrap}
+nav button{appearance:none;border:0;border-radius:6px 6px 0 0;background:transparent;
+  color:var(--bar-ink);font:inherit;font-weight:600;padding:8px 16px 9px;cursor:pointer;
+  white-space:nowrap;border-top:3px solid transparent}
+nav button:hover{background:var(--tab-hover)}
+nav button[aria-selected="true"]{background:var(--active-bg);color:var(--active-ink);
+  border-top-color:var(--accent)}
+nav button:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
+#frames{flex:1 1 auto;position:relative;min-height:0}
+#frames iframe{position:absolute;inset:0;width:100%;height:100%;border:0;background:#fff}
+#frames iframe[hidden]{display:none}
+@media print{
+  /* 印刷は各アプリの中の「印刷」ボタンから行ってください（アプリ内だけが印刷されます） */
+  nav{display:none}
+}
+</style>
+</head>
+<body>
+<nav role="tablist" aria-label="アプリ切り替え">
+  <span class="brand">業務アプリ</span>
+</nav>
+<div id="frames"></div>
+<script>
+(function(){
+  'use strict';
+  // タブの一覧。アプリを追加・変更するときはここを編集します
+  var APPS = [
+    { id:'stock',      label:'薬剤在庫管理',         src:'apps/stock/index.html' },
+    { id:'order',      label:'在宅移行初期管理料 指示書', src:'apps/order/index.html' },
+    { id:'visit-list', label:'訪問リスト印刷',        src:'apps/visit-list/index.html' },
+    { id:'vaccine',    label:'ワクチン接種管理',      src:'apps/vaccine/index.html' },
+    { id:'jisan',      label:'持参薬管理',           src:'apps/jisan/index.html' }
+  ];
+  var LAST_KEY = 'businessApp.portal.lastTab';
+  var nav = document.querySelector('nav');
+  var box = document.getElementById('frames');
+  var tabs = {}, frames = {};
+
+  APPS.forEach(function(app){
+    var b = document.createElement('button');
+    b.type = 'button';
+    b.id = 'tab-' + app.id;
+    b.setAttribute('role','tab');
+    b.setAttribute('aria-selected','false');
+    b.setAttribute('aria-controls','frame-' + app.id);
+    b.textContent = app.label;
+    b.addEventListener('click', function(){ show(app.id); });
+    nav.appendChild(b);
+    tabs[app.id] = b;
+  });
+
+  // キーボードの ← → でタブ移動
+  nav.addEventListener('keydown', function(e){
+    if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
+    var i = APPS.findIndex(function(a){ return tabs[a.id] === document.activeElement; });
+    if (i < 0) return;
+    var n = APPS[(i + (e.key === 'ArrowRight' ? 1 : APPS.length - 1)) % APPS.length];
+    show(n.id); tabs[n.id].focus(); e.preventDefault();
+  });
+
+  function show(id){
+    var app = APPS.find(function(a){ return a.id === id; }) || APPS[0];
+    // 初めて開いたときだけ読み込み、以後は入力中の内容を保ったまま切り替える
+    if (!frames[app.id]) {
+      var f = document.createElement('iframe');
+      f.id = 'frame-' + app.id;
+      f.title = app.label;
+      f.setAttribute('role','tabpanel');
+      f.setAttribute('aria-labelledby','tab-' + app.id);
+      f.src = app.src;
+      box.appendChild(f);
+      frames[app.id] = f;
+    }
+    APPS.forEach(function(a){
+      var on = a.id === app.id;
+      tabs[a.id].setAttribute('aria-selected', on ? 'true' : 'false');
+      tabs[a.id].tabIndex = on ? 0 : -1;
+      if (frames[a.id]) frames[a.id].hidden = !on;
+    });
+    document.title = app.label + ' - 業務アプリ';
+    try { localStorage.setItem(LAST_KEY, app.id); } catch(e) {}
+    if (location.hash !== '#' + app.id) history.replaceState(null, '', '#' + app.id);
+    try { frames[app.id].contentWindow.focus(); } catch(e) {}
+  }
+
+  window.addEventListener('hashchange', function(){ show(location.hash.slice(1)); });
+
+  var first = location.hash.slice(1);
+  if (!first) { try { first = localStorage.getItem(LAST_KEY); } catch(e) {} }
+  show(first);
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,242 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>在宅 抗菌薬・解熱鎮痛薬 在庫管理</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <header class="app-header no-print">
+    <h1>在宅 抗菌薬・解熱鎮痛薬 在庫管理</h1>
+    <div class="today">本日: <span id="today-label"></span></div>
+  </header>
+
+  <nav class="tabs no-print" id="tabs">
+    <button data-tab="stock" class="active">お守り薬一覧</button>
+    <button data-tab="register">お守り薬登録</button>
+    <button data-tab="usage">使用記録（データシート）</button>
+    <button data-tab="master">薬剤マスタ</button>
+    <button data-tab="patients">患者マスタ</button>
+    <button data-tab="settings">設定・バックアップ</button>
+  </nav>
+
+  <main class="no-print">
+    <!-- お守り薬一覧 -->
+    <section id="tab-stock" class="tab active">
+      <div class="toolbar">
+        <input type="search" id="stock-search" placeholder="患者名・薬剤名で検索">
+        <select id="stock-filter-category">
+          <option value="">区分: すべて</option>
+          <option>抗菌薬</option>
+          <option>解熱鎮痛薬</option>
+          <option>麻薬</option>
+        </select>
+        <select id="stock-filter-status">
+          <option value="">状態: すべて</option>
+          <option value="red">赤（期限到達）</option>
+          <option value="yellow">黄（期限の半分経過）</option>
+          <option value="green">期限内</option>
+        </select>
+        <label class="check"><input type="checkbox" id="stock-show-closed"> 使用済・廃棄も表示</label>
+      </div>
+      <div class="legend">
+        <span class="chip yellow">黄色</span> 処方日から有効期限の半分が経過
+        <span class="chip red">赤色</span> 処方日から有効期限の期間が経過
+      </div>
+      <div class="summary" id="stock-summary"></div>
+      <div class="table-wrap">
+        <table class="list" id="stock-table">
+          <thead>
+            <tr>
+              <th>状態</th><th>患者名</th><th>薬剤名（区分）</th><th>数量</th>
+              <th>処方日（経過）</th><th>有効期限</th><th>黄色／赤色になる日</th>
+              <th>処方医</th><th>操作</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- お守り薬登録 -->
+    <section id="tab-register" class="tab">
+      <h2 id="register-title">お守り薬登録</h2>
+      <form id="stock-form" class="form" autocomplete="off">
+        <input type="hidden" name="id">
+        <label>患者名 <span class="req">*</span>
+          <input name="patientName" list="dl-patients" required>
+        </label>
+        <label>患者ID
+          <input name="patientId">
+        </label>
+        <label>処方日 <span class="req">*</span>
+          <input name="prescribedDate" type="date" required>
+        </label>
+        <label>処方医
+          <input name="prescriber" list="dl-doctors" placeholder="登録済みの医師から選択">
+        </label>
+        <div class="wide" id="drug-rows"></div>
+        <div class="buttons wide" id="drug-add-wrap">
+          <button type="button" id="drug-add">＋ 薬剤を追加（同時に処方された薬剤）</button>
+        </div>
+        <div class="buttons wide">
+          <button type="submit" class="primary" id="stock-form-save">保存</button>
+          <button type="button" id="stock-form-reset">クリア</button>
+        </div>
+      </form>
+    </section>
+
+    <!-- 使用記録 -->
+    <section id="tab-usage" class="tab">
+      <div class="toolbar">
+        <input type="search" id="usage-search" placeholder="患者名・医師名・薬剤名で検索">
+        <select id="usage-filter-memo">
+          <option value="">処方メモ: すべて</option>
+          <option value="no">未発行のみ</option>
+          <option value="yes">発行済のみ</option>
+        </select>
+        <button id="usage-export">Excelに出力</button>
+      </div>
+      <div class="table-wrap">
+        <table class="list" id="usage-table">
+          <thead>
+            <tr>
+              <th>No.</th><th>患者名</th><th>使用開始日</th><th>開始指示医師</th><th>薬剤名</th><th>処方メモ</th><th>操作</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- 薬剤マスタ -->
+    <section id="tab-master" class="tab">
+      <div class="toolbar">
+        <label class="file-btn">Excel薬剤マスタを読み込む
+          <input type="file" id="master-file" accept=".xlsx,.xlsm,.xls,.csv">
+        </label>
+        <label class="check"><input type="checkbox" id="master-replace" checked> 既存マスタを置き換える</label>
+        <button id="master-template">マスタのひな形をダウンロード</button>
+        <button id="master-add">1件追加</button>
+        <input type="search" id="master-search" placeholder="薬剤名・コードで検索">
+        <label class="check"><input type="checkbox" id="master-unverified"> 有効期限が未確認のものだけ</label>
+      </div>
+      <p class="hint">
+        1行目を見出し行とし、<b>区分</b>（抗菌薬／解熱鎮痛薬）・<b>薬剤名</b>・<b>有効期限(年)</b> または <b>有効期限(月)</b> の列を読み込みます。
+        <b>規格</b>・<b>単位</b>・<b>用法用量</b>・<b>コード</b> 列があれば併せて取り込みます。列の順番は問いません。<br>
+        <code>master/医薬品マスタ_内用外用.xlsx</code> を読み込む場合は、「薬効分類マスタ」シートで <b>対象区分</b>（抗菌薬／解熱鎮痛薬）を設定した分類の医薬品だけが取り込まれます。
+      </p>
+      <div class="summary" id="master-summary"></div>
+      <div class="table-wrap">
+        <table class="list" id="master-table">
+          <thead>
+            <tr><th>コード</th><th>区分</th><th>薬剤名</th><th>規格</th><th>単位</th><th>有効期限（製造から）</th><th>有効期限の確認</th><th>操作</th></tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- 患者マスタ -->
+    <section id="tab-patients" class="tab">
+      <div class="toolbar">
+        <label class="file-btn">Excel患者マスタを読み込む
+          <input type="file" id="patient-file" accept=".xlsx,.xlsm,.xls,.csv">
+        </label>
+        <label class="check"><input type="checkbox" id="patient-replace" checked> 既存の患者マスタを置き換える</label>
+        <button id="patient-template">ひな形をダウンロード</button>
+        <button id="patient-clear">患者マスタを削除</button>
+        <input type="search" id="patient-search" placeholder="患者名・IDで検索">
+      </div>
+      <p class="hint">
+        1行目を見出し行とし、<b>患者名</b>（氏名）の列が必須です。<b>患者ID</b>（患者番号・カルテ番号）と <b>カナ</b>（フリガナ）の列があれば併せて取り込みます。列の順番は問いません。
+        取り込むと、お守り薬登録の患者名入力で候補が表示され、選ぶと患者IDも自動で入ります。カナでも検索できます。
+      </p>
+      <div class="summary" id="patient-summary"></div>
+      <div class="table-wrap">
+        <table class="list" id="patient-table">
+          <thead><tr><th>患者ID</th><th>患者名</th><th>カナ</th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- 設定 -->
+    <section id="tab-settings" class="tab">
+      <h2>処方医の登録</h2>
+      <p class="hint">ここに登録した医師が、お守り薬登録の「処方医」と使用開始指示の「指示医師名」の入力候補になります。</p>
+      <div class="toolbar">
+        <input id="doctor-input" placeholder="医師名（例: 山田 太郎）">
+        <button type="button" id="doctor-add" class="primary">追加</button>
+      </div>
+      <ul class="doctor-list" id="doctor-list"></ul>
+
+      <h2>処方メモの設定</h2>
+      <form id="settings-form" class="form">
+        <label>メモの表題
+          <input name="memoTitle">
+        </label>
+        <div class="buttons wide"><button type="submit" class="primary">設定を保存</button></div>
+      </form>
+
+      <h2>バックアップ</h2>
+      <p class="hint">データはこのパソコンのブラウザ内に保存されます。定期的にバックアップを取ってください。</p>
+      <div class="toolbar">
+        <button id="backup-export">バックアップを保存（JSON）</button>
+        <label class="file-btn">バックアップから復元
+          <input type="file" id="backup-import" accept=".json">
+        </label>
+      </div>
+    </section>
+  </main>
+
+  <!-- 使用開始指示ダイアログ -->
+  <dialog id="use-dialog" class="no-print">
+    <form id="use-form" method="dialog" class="form">
+      <h2>使用開始指示</h2>
+      <input type="hidden" name="stockId">
+      <input type="hidden" name="usageId">
+      <div class="wide use-target" id="use-target"></div>
+      <label>使用開始日 <span class="req">*</span>
+        <input name="startDate" type="date" required>
+      </label>
+      <label>開始指示医師 <span class="req">*</span>
+        <input name="doctorName" list="dl-doctors" required>
+      </label>
+      <label>使用数量
+        <span class="inline"><input name="quantity" type="number" min="0" step="any"> <span id="use-unit"></span></span>
+      </label>
+      <label class="wide">記入者（指示受け）
+        <input name="recorder">
+      </label>
+      <label class="wide">備考
+        <input name="note">
+      </label>
+      <label class="check wide"><input type="checkbox" name="markUsed" checked> このお守り薬を「使用済」にする</label>
+      <div class="buttons wide">
+        <button type="submit" value="save" class="primary">保存して処方メモを発行</button>
+        <button type="submit" value="saveOnly">保存のみ</button>
+        <button type="submit" value="cancel" formnovalidate>キャンセル</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- 処方メモ (印刷用) -->
+  <div id="memo-overlay" class="memo-overlay">
+    <div class="memo-actions no-print">
+      <button id="memo-print" class="primary">印刷する（発行済にする）</button>
+      <button id="memo-close">閉じる</button>
+    </div>
+    <div id="memo-sheet"></div>
+  </div>
+
+  <datalist id="dl-drugs"></datalist>
+  <datalist id="dl-doctors"></datalist>
+  <datalist id="dl-patients"></datalist>
+
+  <script src="vendor/xlsx.full.min.js"></script>
+  <script src="js/logic.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>
