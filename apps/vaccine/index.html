@@ -1167,18 +1167,25 @@ function detectMap(rows, hr){
   if(map.jaddr == null && !used.has(6) && !/年齢|検索|age/i.test(hs[6]||'')){ map.jaddr = 6; used.add(6); }
   return map;
 }
+// 患者マスタから除外する患者（業務アプリまとめ版の運用ルール。訪問リスト印刷以外のアプリで使用）
+// ・ID に「WA」を含む　・名前に「[亘]」を含む（全角の ＷＡ ／ ［亘］、【亘】、(亘) も対象）
+function isExcludedPatient(id, name){
+  const n = s => String(s == null ? '' : s).normalize('NFKC').toUpperCase();
+  return n(id).includes('WA') || /[\[【(]\s*亘\s*[\]】)]/.test(n(name));
+}
 function buildPatients(rows, hr, map){
-  const out = new Map(); let bad = 0, noBirth = 0;
+  const out = new Map(); let bad = 0, noBirth = 0, excluded = 0;
   for(let r = hr + 1; r < rows.length; r++){
     const row = rows[r] || [], g = f => map[f] == null || map[f] < 0 ? null : row[map[f]];
     const id = toIdStr(g('id'));
     if(!id){ continue; }
     const p = {id, name:strVal(g('name')), kana:strVal(g('kana')), birth:parseDate(g('birth')), addr:strVal(g('jaddr')) || strVal(g('addr')), gh:strVal(g('gh'))};
     if(!p.name && !p.kana){ bad++; continue; }
+    if(isExcludedPatient(id, p.name)){ excluded++; continue; }
     if(!p.birth) noBirth++;
     out.set(id, p);
   }
-  return {list:[...out.values()], bad, noBirth};
+  return {list:[...out.values()], bad, noBirth, excluded};
 }
 async function onMasterFile(file){
   let sheets;
@@ -1205,7 +1212,7 @@ async function onMasterFile(file){
       <div class="sec"><h3>確認（先頭5名）</h3>
         <div style="overflow:auto"><table class="maptbl"><tr><th>ID</th><th>氏名</th><th>ふりがな</th><th>生年月日</th><th>住所</th><th>施設名</th></tr>
         ${prev.map(p=>`<tr><td>${esc(p.id)}</td><td>${esc(p.name)}</td><td>${esc(p.kana)}</td><td>${fmtD(p.birth)||'<span class="tag warn">不明</span>'}</td><td>${esc(p.addr)}</td><td>${esc(p.gh)}</td></tr>`).join('') || '<tr><td colspan="6">データがありません</td></tr>'}</table></div>
-        <p>読み込み件数：<b>${res.list.length.toLocaleString()}名</b>${res.noBirth?`　<span class="tag warn">生年月日が読めない ${res.noBirth}名</span>`:''}${res.bad?`　（氏名のない行 ${res.bad}件は除外）`:''}</p>
+        <p>読み込み件数：<b>${res.list.length.toLocaleString()}名</b>${res.noBirth?`　<span class="tag warn">生年月日が読めない ${res.noBirth}名</span>`:''}${res.bad?`　（氏名のない行 ${res.bad}件は除外）`:''}${res.excluded?`　（ID に WA／氏名に [亘] の ${res.excluded}名は除外）`:''}</p>
         ${ex?`<p class="hint">現在の患者マスタ（${ex.toLocaleString()}名）は、この内容に置き換わります。登録済みの接種データはそのまま残り、患者情報は新しいマスタの内容で表示されます。</p>`:''}
       </div>`;
     $('#mSheet').onchange = ev => { tmp.si = +ev.target.value; reDetect(); draw(); };
@@ -1223,7 +1230,7 @@ async function onMasterFile(file){
     // 登録済データの患者情報を最新化
     for(const v of VACCINES) for(const e of state.entries[v.id]){ const p = masterMap.get(e.pid); if(p) e.snap = {...p}; }
     persist(); renderAll(); dlg.close();
-    toast(`患者マスタを読み込みました（${list.length.toLocaleString()}名）`);
+    toast(`患者マスタを読み込みました（${list.length.toLocaleString()}名${tmp.res.excluded?`、${tmp.res.excluded}名は除外`:''}）`);
   };
   draw();
 }

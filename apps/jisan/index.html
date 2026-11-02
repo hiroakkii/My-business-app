@@ -1113,16 +1113,24 @@ async function readXlsx(file){
   }
   return first;
 }
+// 患者マスタから除外する患者（業務アプリまとめ版の運用ルール。訪問リスト印刷以外のアプリで使用）
+// ・ID に「WA」を含む　・名前に「[亘]」を含む（全角の ＷＡ ／ ［亘］、【亘】、(亘) も対象）
+function isExcludedPatient(id,name){
+  const n=s=>String(s==null?'':s).normalize('NFKC').toUpperCase();
+  return n(id).includes('WA')||/[\[【(]\s*亘\s*[\]】)]/.test(n(name));
+}
 async function importMaster(file){
   let rows;
   if(/\.(xlsx|xlsm)$/i.test(file.name)) rows=await readXlsx(file);   // マクロ有効ブックも同じ構造(マクロは実行されない)
   else if(/\.xls$/i.test(file.name)) throw new Error('xls');
   else rows=parseCsv(await readTextFile(file));
   const cols=detectCols(rows), map=new Map();
+  let excluded=0;
   for(const r of rows.slice(cols.head+1)){
     const clean=c=>(c==null?'':String(c)).normalize('NFKC').trim();
     let pid=clean(r[cols.id]).replace(/\.0+$/,''), name=clean(r[cols.name]);
     if(!pid||!name) continue;
+    if(isExcludedPatient(pid,name)){ excluded++; continue; }
     map.set(pid,masterRec(pid,name,cols.kana>=0?clean(r[cols.kana]):''));
   }
   if(!map.size) throw new Error('empty');
@@ -1131,7 +1139,7 @@ async function importMaster(file){
   master=list;
   try{ localStorage.setItem(MASTER_META,JSON.stringify({at:nowLocal(),file:file.name,n:list.length})); }catch(e){}
   showMasterInfo(); renderList();
-  return {n:list.length,cols:(cols.head>=0?'見出し行を検出: ':'見出しなし: ')+'ID='+colLetter(cols.id)+'列 / 氏名='+colLetter(cols.name)+'列'+(cols.kana>=0?' / カナ='+colLetter(cols.kana)+'列':'')};
+  return {n:list.length,excluded,cols:(cols.head>=0?'見出し行を検出: ':'見出しなし: ')+'ID='+colLetter(cols.id)+'列 / 氏名='+colLetter(cols.name)+'列'+(cols.kana>=0?' / カナ='+colLetter(cols.kana)+'列':'')};
 }
 async function startFromMaster(pid){
   const m=master.find(x=>x.pid===pid); if(!m) return;
@@ -1145,7 +1153,7 @@ document.getElementById('masterIn').onchange=async e=>{
   const f=e.target.files[0]; if(!f) return; e.target.value='';
   try{
     const r=await importMaster(f);
-    alert('患者名簿を取り込みました: '+r.n+'人\n('+r.cols+')\n\n名簿は取り込みのたびに置き換わります。Excelから消えた患者も、アプリに保存済みの患者データは残ります。');
+    alert('患者名簿を取り込みました: '+r.n+'人'+(r.excluded?'（ID に WA／氏名に [亘] の '+r.excluded+'人は除外）':'')+'\n('+r.cols+')\n\n名簿は取り込みのたびに置き換わります。Excelから消えた患者も、アプリに保存済みの患者データは残ります。');
   }catch(err){
     alert(err.message==='xls'?'旧形式の .xls は読めません。Excelで .xlsx(またはCSV)に保存し直してください。'
       :err.message==='empty'?'ID と氏名を読み取れませんでした。1行目に「ID」「氏名」の見出しがあるか確認してください。'

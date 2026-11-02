@@ -845,6 +845,13 @@
     kana: ['カナ', 'フリガナ', 'ふりがな', '患者カナ', '氏名カナ', 'カナ氏名', '患者名カナ', '患者名(カナ)'],
   };
 
+  // 患者マスタから除外する患者（業務アプリまとめ版の運用ルール。訪問リスト印刷以外のアプリで使用）
+  // ・ID に「WA」を含む　・名前に「[亘]」を含む（全角の ＷＡ ／ ［亘］、【亘】、(亘) も対象）
+  function isExcludedPatient(id, name) {
+    const n = (s) => String(s == null ? '' : s).normalize('NFKC').toUpperCase();
+    return n(id).includes('WA') || /[\[【(]\s*亘\s*[\]】)]/.test(n(name));
+  }
+
   function parsePatientRows(rows) {
     if (!rows.length) return [];
     const col = {};
@@ -857,10 +864,12 @@
     if (!col.name) throw new Error('「患者名」（または氏名）の列が見つかりません。');
     const seen = new Set();
     const list = [];
+    list.excluded = 0;
     rows.forEach((r) => {
       const name = String(r[col.name] || '').trim();
       const id = col.id ? String(r[col.id] || '').trim() : '';
       if (!name) return;
+      if (isExcludedPatient(id, name)) { list.excluded++; return; }
       const key = id + '|' + name;
       if (seen.has(key)) return;
       seen.add(key);
@@ -877,7 +886,8 @@
       const wb = XLSX.read(await file.arrayBuffer(), { type: 'array' });
       const name = wb.SheetNames.find((n) => /患者/.test(n)) || wb.SheetNames[0];
       const list = parsePatientRows(XLSX.utils.sheet_to_json(wb.Sheets[name], { defval: '', raw: false }));
-      if (!list.length) throw new Error('取り込める患者がありませんでした。');
+      const excluded = list.excluded;
+      if (!list.length) throw new Error('取り込める患者がありませんでした。' + (excluded ? '（ID に WA／名前に [亘] の ' + excluded + ' 名は除外）' : ''));
       if ($('#patient-replace').checked) {
         db.patients = list;
       } else {
@@ -888,7 +898,8 @@
       }
       save();
       render();
-      alert('シート「' + name + '」から ' + list.length + ' 名を読み込みました。');
+      alert('シート「' + name + '」から ' + list.length + ' 名を読み込みました。' +
+        (excluded ? '\n（ID に WA、または名前に [亘] が入っている ' + excluded + ' 名は除外しました）' : ''));
     } catch (err) {
       alert('患者マスタを読み込めませんでした。\n' + err.message);
     }
