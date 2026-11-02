@@ -75,7 +75,15 @@ nav .reset[hidden]{display:none}
 #data h3{margin:0 0 6px;font-size:14px}
 #data p{margin:4px 0 8px;color:#4a5662;font-size:12.5px}
 #data .row{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
-#data input[type=password]{font:inherit;padding:5px 8px;border:1px solid #c6ced6;border-radius:5px;width:12em}
+#data .pw{display:inline-flex;align-items:stretch}
+#data .pw input{font:inherit;padding:5px 8px;border:1px solid #c6ced6;border-right:0;border-radius:5px 0 0 5px;width:11em}
+#data .pw input[aria-invalid="true"]{border-color:#b3261e;background:#fdf1f0}
+#data .pw button.eye{border-radius:0 5px 5px 0;padding:0 9px;font-size:12px;min-width:4.2em;color:#4a5662}
+#data .pw button.eye[aria-pressed="true"]{background:#eef3f8;color:#1f2933}
+#data .pwmsg{margin:6px 0 0;font-size:12.5px;min-height:1.3em}
+#data .pwmsg.ng{color:#b3261e;font-weight:600}
+#data .pwmsg.ok{color:#1d7a3e}
+#data .pwmsg.hint{color:#4a5662}
 #data button{font:inherit;padding:6px 14px;border-radius:6px;border:1px solid #c6ced6;background:#fff;cursor:pointer}
 #data button.primary{background:var(--accent);border-color:var(--accent);color:#fff;font-weight:600}
 #data button.danger{background:#b3261e;border-color:#b3261e;color:#fff;font-weight:600}
@@ -108,17 +116,18 @@ nav .reset[hidden]{display:none}
       パスワードを入れると暗号化して保存します（<b>忘れると復元できません</b>）。パスワードなしのファイルは誰でも中身を読めるので、保管場所に注意してください。<br>
       ※ 指示書の郵便番号データと、ワクチン接種管理の保存先フォルダの設定は含みません（復元後に設定し直してください）。</p>
     <div class="row">
-      <input type="password" id="data-pw" placeholder="パスワード（任意）" autocomplete="new-password">
-      <input type="password" id="data-pw2" placeholder="パスワード（確認）" autocomplete="new-password">
+      <span class="pw"><input type="password" id="data-pw" placeholder="パスワード（任意）" autocomplete="new-password"><button type="button" class="eye" data-for="data-pw" aria-pressed="false" title="入力したパスワードを表示します">表示</button></span>
+      <span class="pw"><input type="password" id="data-pw2" placeholder="パスワード（確認）" autocomplete="new-password"><button type="button" class="eye" data-for="data-pw2" aria-pressed="false" title="入力したパスワードを表示します">表示</button></span>
       <button type="button" class="primary" id="data-backup">バックアップを保存</button>
     </div>
+    <div class="pwmsg" id="data-pwmsg" aria-live="polite"></div>
   </section>
   <section>
     <h3>一括復元</h3>
     <p>一括バックアップのファイルから、バックアップに入っているアプリのデータを<b>すべて置き換えて</b>戻します。
       暗号化したファイルは、バックアップしたときのパスワードを入れてから選んでください。各アプリ個別のバックアップファイルは、それぞれのアプリで復元してください。</p>
     <div class="row">
-      <input type="password" id="data-rpw" placeholder="パスワード（暗号化したファイルのみ）" autocomplete="current-password" style="width:17em">
+      <span class="pw"><input type="password" id="data-rpw" placeholder="パスワード（暗号化したファイルのみ）" autocomplete="current-password" style="width:16em"><button type="button" class="eye" data-for="data-rpw" aria-pressed="false" title="入力したパスワードを表示します">表示</button></span>
       <button type="button" id="data-restore">ファイルを選んで復元</button>
     </div>
     <input type="file" id="data-restore-input" accept=".json" hidden>
@@ -709,7 +718,44 @@ nav .reset[hidden]{display:none}
     dataBusy = on;
     // 「閉じる」はいつでも押せるようにしておく
     dataDlg.querySelectorAll('button, input').forEach(function(x){ if (x.id !== 'data-close') x.disabled = on; });
+    if (!on) checkPw();
   }
+
+  // パスワードの「表示／隠す」
+  dataDlg.querySelectorAll('button.eye').forEach(function(b){
+    b.addEventListener('click', function(){
+      var input = document.getElementById(b.dataset.for), show = input.type === 'password';
+      input.type = show ? 'text' : 'password';
+      b.textContent = show ? '隠す' : '表示';
+      b.setAttribute('aria-pressed', show ? 'true' : 'false');
+      b.title = show ? 'パスワードを隠します' : '入力したパスワードを表示します';
+      input.focus();
+    });
+  });
+  // 2回入力したパスワードが同じか、入力のたびに確かめる。違う間は保存できないようにする
+  var pw1 = document.getElementById('data-pw'), pw2 = document.getElementById('data-pw2'), pwMsg = document.getElementById('data-pwmsg');
+  var pw2Touched = false;
+  function checkPw(){
+    var a = pw1.value, b = pw2.value, bad = false, msg = '', cls = '';
+    if (!a && !b) { msg = ''; }
+    else if (a && !b) { msg = '確認のため、右の欄にも同じパスワードを入力してください。'; cls = 'hint'; bad = true; }
+    else if (a !== b) {
+      bad = true;
+      // 確認欄を入力し終わる前は、打ち間違いでなければ途中なので強く警告しない
+      var typing = !pw2Touched && a.indexOf(b) === 0;
+      msg = typing ? '確認のため、右の欄にも同じパスワードを入力してください。' : '⚠ 2つのパスワードが一致しません。もう一度確かめてください。';
+      cls = typing ? 'hint' : 'ng';
+    } else { msg = '✓ パスワードが一致しました。暗号化して保存します。'; cls = 'ok'; }
+    pwMsg.textContent = msg;
+    pwMsg.className = 'pwmsg' + (cls ? ' ' + cls : '');
+    pw2.setAttribute('aria-invalid', cls === 'ng' ? 'true' : 'false');
+    if (!dataBusy) document.getElementById('data-backup').disabled = bad;
+    return !bad;
+  }
+  pw1.addEventListener('input', checkPw);
+  pw2.addEventListener('input', checkPw);
+  pw2.addEventListener('blur', function(){ if (pw2.value) { pw2Touched = true; checkPw(); } });
+  pw1.addEventListener('blur', function(){ if (pw2.value) { pw2Touched = true; checkPw(); } });
 
   dataBtn.addEventListener('click', function(){
     var box = document.getElementById('data-apps');
@@ -722,6 +768,8 @@ nav .reset[hidden]{display:none}
       box.appendChild(l);
     });
     setStatus('', '');
+    pw2Touched = false;
+    checkPw();
     dataDlg.showModal();
   });
   document.getElementById('data-close').addEventListener('click', function(){ dataDlg.close(); });
@@ -786,6 +834,7 @@ nav .reset[hidden]{display:none}
     if (!ids.length) { setStatus('ng', '削除するアプリを選んでください。'); return; }
     var labels = ids.map(function(id){ return APPS.find(function(a){ return a.id === id; }).label; });
     var withBackup = document.getElementById('data-del-backup').checked;
+    if (withBackup && !checkPw()) { setStatus('ng', '✕ バックアップ用のパスワードを確認してください（2つの欄が一致していません）。'); pw2.focus(); return; }
     busy(true);
     try {
       if (withBackup) {
