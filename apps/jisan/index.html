@@ -977,7 +977,14 @@ function openDb(){
       if(!d.objectStoreNames.contains(STORE)) d.createObjectStore(STORE,{keyPath:'id'});
       if(!d.objectStoreNames.contains(MASTER)) d.createObjectStore(MASTER,{keyPath:'pid'});   // Excel患者名簿
     };
-    rq.onsuccess=()=>res(rq.result); rq.onerror=()=>rej(rq.error);
+    rq.onsuccess=()=>{
+      const d=rq.result;
+      // ほかの画面がこのデータの更新・削除・復元を始めたら、すぐに接続を閉じて譲る（閉じないと相手が止まったままになる）
+      d.onversionchange=()=>{ d.close(); if(db===d) db=null; dbWarn('別の画面でこのアプリのデータが復元・削除・更新されました。最新の内容を表示するには、画面を読み込み直してください（F5）。'); };
+      res(d);
+    };
+    rq.onerror=()=>rej(rq.error);
+    rq.onblocked=()=>dbWarn('このアプリを別のタブ・ウィンドウでも開いているため、データを開けません。ほかの画面を閉じてから読み込み直してください。');
   });
 }
 function dbRun(mode,fn,store){

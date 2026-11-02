@@ -1482,7 +1482,7 @@ function download(blob, name){
 const FS_OK = typeof window.showDirectoryPicker === 'function';
 const BK_PREFIX = 'ワクチン管理_バックアップ_';
 let backupDir = null;
-function idbOpen(){ return new Promise((res,rej)=>{ const r = indexedDB.open('vaccineKanri.fs', 1); r.onupgradeneeded = () => r.result.createObjectStore('h'); r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error); }); }
+function idbOpen(){ return new Promise((res,rej)=>{ const r = indexedDB.open('vaccineKanri.fs', 1); r.onupgradeneeded = () => r.result.createObjectStore('h'); r.onsuccess = () => { r.result.onversionchange = () => r.result.close(); res(r.result); }; r.onerror = () => rej(r.error); }); }
 async function idbGet(k){ const db = await idbOpen(); return new Promise((res,rej)=>{ const q = db.transaction('h').objectStore('h').get(k); q.onsuccess = () => res(q.result); q.onerror = () => rej(q.error); }); }
 async function idbPut(k, v){ const db = await idbOpen(); return new Promise((res,rej)=>{ const t = db.transaction('h','readwrite'); v === undefined ? t.objectStore('h').delete(k) : t.objectStore('h').put(v, k); t.oncomplete = () => res(); t.onerror = () => rej(t.error); }); }
 const dirReady = (async () => { try{ if(FS_OK) backupDir = (await idbGet('backupDir')) || null; }catch(e){ backupDir = null; } })();

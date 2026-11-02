@@ -578,7 +578,9 @@ nav .reset[hidden]{display:none}
       r.onsuccess = function(){ var db = r.result; db.onversionchange = function(){ db.close(); }; res(db); };
       r.onerror = function(e){ if (e && e.preventDefault) e.preventDefault(); rej(r.error); };
       r.onblocked = function(){ rej(new Error('「' + name + '」がほかの画面で使用中です。ほかのタブ・ウィンドウでアプリを開いていたら閉じてください。')); };
-    }), '「' + name + '」を開く処理');
+    }), '「' + name + '」を開く処理').catch(function(e){
+      throw new Error(e.message + '\n別の画面（または以前の操作）がこのデータを使ったまま残っています。ブラウザ（Edge / Chrome）のウィンドウを一度すべて閉じてから開き直し、もう一度お試しください。');
+    });
   }
   async function dumpIdb(name){
     if (!(await idbExists(name))) return null;
