@@ -129,7 +129,50 @@
     return (y ? y + '年' : '') + (m ? m + 'ヶ月' : '') || '0ヶ月';
   }
 
+  // ---- 処方メモの状態 ----
+  // 'unissued' : 処方メモ未発行
+  // 'waiting'  : 発行済だが、医師の指示記載をまだ確認していない（処方メモに指示が書かれていない）
+  // 'written'  : 医師の指示が記載されたことを確認済み
+  function memoState(u) {
+    if (!u.memoIssued) return 'unissued';
+    return u.instructed ? 'written' : 'waiting';
+  }
+
+  // 医師名の表記ゆれ（空白・全角半角）を同じ医師として扱うためのキー
+  function doctorKey(name) {
+    return String(name == null ? '' : name).normalize('NFKC').replace(/\s+/g, '');
+  }
+
+  // メモ発行日から今日までの経過日数（発行日が分からなければ null）
+  function waitingDays(u, today) {
+    const d = parseDate(String(u.memoIssuedAt || '').slice(0, 10));
+    return d ? Math.max(0, diffDays(d, today)) : null;
+  }
+
+  // 医師ごとにまとめる。戻り値: [{ key, name, items: [使用記録...] }] を医師名のかな順
+  // items は発行が古い（待たせている）順
+  function groupByDoctor(usages) {
+    const map = new Map();
+    usages.forEach(function (u) {
+      const k = doctorKey(u.doctorName);
+      if (!map.has(k)) map.set(k, { key: k, name: String(u.doctorName || '').trim() || '（医師名なし）', items: [] });
+      map.get(k).items.push(u);
+    });
+    const groups = Array.from(map.values());
+    groups.forEach(function (g) {
+      g.items.sort(function (a, b) {
+        return String(a.memoIssuedAt || '').localeCompare(String(b.memoIssuedAt || '')) || a.no - b.no;
+      });
+    });
+    groups.sort(function (a, b) { return a.name.localeCompare(b.name, 'ja'); });
+    return groups;
+  }
+
   return {
+    memoState: memoState,
+    doctorKey: doctorKey,
+    waitingDays: waitingDays,
+    groupByDoctor: groupByDoctor,
     parseDate: parseDate,
     toISO: toISO,
     formatDate: formatDate,

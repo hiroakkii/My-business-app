@@ -125,6 +125,18 @@ tr.row-red td:first-child, tr.row-yellow td:first-child { font-weight: bold; }
 tr.row-closed td { color: var(--muted); background: #f2f2f2; }
 tr.row-pending td:first-child { border-left: 4px solid var(--red-strong); }
 #stock-table tr.row-pending td { background: #fff0f0; }
+/* 使用記録: 黄＝処方メモ未発行、赤＝発行済だが医師の指示が未記載 */
+#usage-table tr.row-unissued td { background: var(--yellow-bg); }
+#usage-table tr.row-unissued td:first-child { border-left: 4px solid var(--yellow-strong); }
+#usage-table tr.row-waiting td { background: var(--red-bg); }
+#usage-table tr.row-waiting td:first-child { border-left: 4px solid var(--red-strong); }
+#usage-table tr.row-waiting td:first-child, #usage-table tr.row-waiting td:nth-child(2) { font-weight: bold; }
+.chip[hidden], button[hidden] { display: none; }
+#tabs .chip { margin-left: 6px; padding: 0 7px; font-size: 12px; }
+button.chip.link { border: none; cursor: pointer; font-family: inherit; }
+button.chip.link:hover { filter: brightness(0.92); }
+.sum-docs { display: inline-flex; flex-wrap: wrap; gap: 4px; align-items: center; margin-left: 8px; }
+button.ok { background: var(--green-strong); color: #fff; border-color: var(--green-strong); }
 
 .form {
   display: grid;
@@ -155,7 +167,7 @@ dialog .form { border: none; max-width: none; }
 
 /* ---------- 処方メモ ---------- */
 .memo-overlay { display: none; }
-body.memo-open .memo-overlay {
+body.memo-open #memo-overlay, body.waiting-open #waiting-overlay {
   display: block;
   position: fixed;
   inset: 0;
@@ -164,7 +176,23 @@ body.memo-open .memo-overlay {
   z-index: 100;
   padding: 16px;
 }
-.memo-actions { display: flex; gap: 8px; justify-content: center; margin-bottom: 16px; }
+.memo-actions { display: flex; gap: 8px; justify-content: center; align-items: center; flex-wrap: wrap; margin-bottom: 16px; }
+.memo-actions .inv { color: #fff; }
+
+/* 指示未記載の一覧 */
+.wl { font-family: "BIZ UDPGothic", "BIZ UDPゴシック", "Yu Gothic UI", "Meiryo", sans-serif; background: #fff; color: #000;
+  width: 190mm; max-width: 100%; margin: 0 auto 16px; padding: 10mm 12mm; font-size: 14px; }
+.wl-date { text-align: right; font-size: 13px; }
+.wl-doc { font-size: 20px; font-weight: bold; margin: 8px 0 4px; }
+.wl-note { margin: 0 0 10px; }
+.wl-table { width: 100%; border-collapse: collapse; }
+.wl-table th, .wl-table td { border: 1px solid #000; padding: 6px 8px; vertical-align: middle; }
+.wl-table th { background: #eee; text-align: center; }
+.wl-table td.c { text-align: center; white-space: nowrap; }
+.wl-table th, .wl-table td.chk { white-space: nowrap; }
+.wl-table td.chk { width: 13mm; }
+.wl-table tr.over td { font-weight: bold; }
+.wl-empty { padding: 24px; text-align: center; }
 
 .memo {
   font-family: "BIZ UDPGothic", "BIZ UDPゴシック", "Yu Gothic UI", "Meiryo", sans-serif;
@@ -201,7 +229,10 @@ body.memo-open .memo-overlay {
   @page { size: A4; margin: 10mm; }
   body { background: #fff; }
   .no-print { display: none !important; }
-  body.memo-open .memo-overlay { position: static; background: none; padding: 0; overflow: visible; }
+  body.memo-open #memo-overlay, body.waiting-open #waiting-overlay { position: static; background: none; padding: 0; overflow: visible; }
+  .wl { margin: 0 auto; padding: 0; width: 100%; max-width: 190mm; page-break-after: always; }
+  .wl:last-child { page-break-after: auto; }
+  .wl-table th { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
   html, body { width: auto; overflow: visible; }
   .memo { margin: 0 auto; padding: 0; width: 100%; max-width: 190mm; page-break-after: always; }
   .memo:last-child { page-break-after: auto; }

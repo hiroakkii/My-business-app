@@ -6,6 +6,38 @@ const L = require('../js/logic.js');
 const d = (s) => L.parseDate(s);
 const fmt = (x) => L.formatDate(x);
 
+test('処方メモの状態: 未発行 / 指示未記載 / 記載済み', () => {
+  assert.equal(L.memoState({ memoIssued: false }), 'unissued');
+  assert.equal(L.memoState({ memoIssued: false, instructed: true }), 'unissued');
+  assert.equal(L.memoState({ memoIssued: true }), 'waiting');
+  assert.equal(L.memoState({ memoIssued: true, instructed: false }), 'waiting');
+  assert.equal(L.memoState({ memoIssued: true, instructed: true }), 'written');
+});
+
+test('医師名は空白・全角半角の違いを同じ医師として扱う', () => {
+  assert.equal(L.doctorKey('山田 太郎'), L.doctorKey('山田　太郎'));
+  assert.equal(L.doctorKey(' 山田太郎 '), L.doctorKey('山田太郎'));
+  assert.equal(L.doctorKey('Ｄｒ．Ａ'), L.doctorKey('Dr.A'));
+  assert.notEqual(L.doctorKey('山田太郎'), L.doctorKey('山田次郎'));
+});
+
+test('メモ発行からの経過日数', () => {
+  assert.equal(L.waitingDays({ memoIssuedAt: '2026-11-01T09:00:00' }, d('2026/11/10')), 9);
+  assert.equal(L.waitingDays({ memoIssuedAt: '2026-11-10T09:00:00' }, d('2026/11/10')), 0);
+  assert.equal(L.waitingDays({ memoIssuedAt: '' }, d('2026/11/10')), null);
+});
+
+test('医師ごとにまとめ、待たせている（発行が古い）順に並べる', () => {
+  const g = L.groupByDoctor([
+    { no: 3, doctorName: '鈴木 一郎', memoIssuedAt: '2026-11-05T10:00:00' },
+    { no: 1, doctorName: '山田 太郎', memoIssuedAt: '2026-11-03T10:00:00' },
+    { no: 2, doctorName: '山田　太郎', memoIssuedAt: '2026-11-01T10:00:00' },
+  ]);
+  assert.equal(g.length, 2);
+  const yamada = g.find((x) => x.key === L.doctorKey('山田太郎'));
+  assert.deepEqual(yamada.items.map((u) => u.no), [2, 1]);
+});
+
 test('仕様の例: 2026/10/29 処方・有効期限2年', () => {
   const t = L.thresholds(d('2026/10/29'), 24);
   assert.equal(fmt(t.yellow), '2027/10/29');

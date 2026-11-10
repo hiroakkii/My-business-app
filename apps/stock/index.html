@@ -17,7 +17,7 @@
   <nav class="tabs no-print" id="tabs">
     <button data-tab="stock" class="active">お守り薬一覧</button>
     <button data-tab="register">お守り薬登録</button>
-    <button data-tab="usage">使用記録（データシート）</button>
+    <button data-tab="usage">使用記録（データシート）<span class="chip red" id="usage-badge" hidden title="処方メモに医師の指示が記載されていない使用記録の数"></span></button>
     <button data-tab="master">薬剤マスタ</button>
     <button data-tab="patients">患者マスタ</button>
     <button data-tab="settings">設定・バックアップ</button>
@@ -95,11 +95,27 @@
         <input type="search" id="usage-search" placeholder="患者名・医師名・薬剤名で検索">
         <select id="usage-filter-memo">
           <option value="">処方メモ: すべて</option>
+          <option value="waiting">指示未記載のみ（発行済）</option>
           <option value="no">未発行のみ</option>
-          <option value="yes">発行済のみ</option>
+          <option value="yes">発行済のみ（記載済・未記載とも）</option>
+          <option value="written">指示記載済のみ</option>
         </select>
+        <select id="usage-filter-doctor" title="開始指示医師で絞り込み"></select>
+        <select id="usage-sort" title="並び順">
+          <option value="new">並び順: 新しい順</option>
+          <option value="waiting">指示未記載を先に（待たせている順）</option>
+          <option value="doctor">医師ごと</option>
+          <option value="start">使用開始日の古い順</option>
+        </select>
+        <button id="usage-waiting-list" title="処方メモに指示が未記載の使用記録を、医師ごとにまとめて表示・印刷します">医師別 未記載一覧</button>
+        <button id="usage-mark-all" hidden>表示中をすべて記載済にする</button>
         <button id="usage-export">Excelに出力</button>
       </div>
+      <div class="legend">
+        <span class="chip red">赤い行</span> 処方メモは発行したが、医師の指示が未記載
+        <span class="chip yellow">黄色い行</span> 処方メモが未発行
+      </div>
+      <div class="summary" id="usage-summary"></div>
       <div class="table-wrap">
         <table class="list" id="usage-table">
           <thead>
@@ -231,6 +247,17 @@
       <button id="memo-close">閉じる</button>
     </div>
     <div id="memo-sheet"></div>
+  </div>
+
+  <!-- 指示未記載の一覧 (医師別・印刷用) -->
+  <div id="waiting-overlay" class="memo-overlay">
+    <div class="memo-actions no-print">
+      <select id="waiting-doctor"></select>
+      <label class="check inv"><input type="checkbox" id="waiting-include-unissued"> 処方メモ未発行の分も含める</label>
+      <button id="waiting-print" class="primary">印刷する</button>
+      <button id="waiting-close">閉じる</button>
+    </div>
+    <div id="waiting-sheet"></div>
   </div>
 
   <datalist id="dl-drugs"></datalist>

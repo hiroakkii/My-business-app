@@ -144,6 +144,15 @@
     if (b) showTab(b.dataset.tab);
   });
 
+  // お守り薬一覧の「指示未記載」から、使用記録を指示未記載で絞り込んで開く
+  $('#stock-summary').addEventListener('click', (e) => {
+    if (!e.target.closest('#stock-waiting-chip')) return;
+    $('#usage-filter-memo').value = 'waiting';
+    $('#usage-filter-doctor').value = '';
+    $('#usage-sort').value = 'waiting';
+    showTab('usage');
+  });
+
   // ---------- 入力補助 (datalist) ----------
   function renderDatalists() {
     $('#dl-drugs').innerHTML = db.drugs.map((d) =>
@@ -185,13 +194,15 @@
 
     const active = db.stocks.filter((s) => s.state === '在庫').map(stockStatus).filter(Boolean);
     const pendingCount = db.stocks.filter((s) => pendingUsage(s)).length;
+    const waitingCount = db.usages.filter((u) => L.memoState(u) === 'waiting').length;
     const count = (k) => active.filter((i) => i.status === k).length;
     $('#stock-summary').innerHTML =
       'お守り薬 <b>' + active.length + '</b> 件　' +
       '<span class="chip red">赤 ' + count('red') + '</span>' +
       '<span class="chip yellow">黄 ' + count('yellow') + '</span>' +
       '<span class="chip green">期限内 ' + count('green') + '</span>' +
-      (pendingCount ? '　<span class="chip red">処方メモ未発行 ' + pendingCount + '</span>' : '');
+      (pendingCount ? '　<span class="chip red">処方メモ未発行 ' + pendingCount + '</span>' : '') +
+      (waitingCount ? '　<button type="button" class="chip red link" id="stock-waiting-chip" title="使用記録を、指示未記載で絞り込んで開きます">処方メモの指示未記載 ' + waitingCount + '</button>' : '');
 
     $('#stock-table tbody').innerHTML = rows.map(({ s, info, pending }) => {
       const cls = pending ? 'row-pending' : s.state !== '在庫' ? 'row-closed' : info ? 'row-' + info.status : '';
@@ -507,6 +518,8 @@
         note: f.note,
         memoIssued: false,
         memoIssuedAt: '',
+        instructed: false,
+        instructedAt: '',
         createdAt: new Date().toISOString(),
       };
       db.usages.push(usage);
@@ -519,38 +532,135 @@
   });
 
   // ---------- 使用記録（データシート） ----------
-  function renderUsage() {
-    const q = $('#usage-search').value.trim();
-    const memo = $('#usage-filter-memo').value;
-    const rows = db.usages
-      .filter((u) => {
-        if (memo === 'yes' && !u.memoIssued) return false;
-        if (memo === 'no' && u.memoIssued) return false;
-        if (q && !(u.patientName + ' ' + u.doctorName + ' ' + u.drugName).includes(q)) return false;
-        return true;
-      })
-      .sort((a, b) => b.no - a.no);
+  // 処方メモの状態: unissued=未発行（黄）/ waiting=発行済だが医師の指示が未記載（赤）/ written=記載済み
+  const MEMO_ORDER = { waiting: 0, unissued: 1, written: 2 };
 
-    $('#usage-table tbody').innerHTML = rows.map((u) =>
-      '<tr class="' + (u.memoIssued ? '' : 'row-pending') + '">' +
-      '<td class="num">' + u.no + '</td>' +
-      '<td>' + esc(u.patientName) + '</td>' +
-      '<td>' + fmtISO(u.startDate) + '</td>' +
-      '<td>' + esc(u.doctorName) + '</td>' +
-      '<td>' + esc(u.drugName) + '</td>' +
-      '<td>' + (u.memoIssued
-        ? '<span class="chip green">発行済</span><br><small>' + esc(fmtISO(u.memoIssuedAt.slice(0, 10))) + '</small>'
-        : '<span class="chip red">未発行</span>') + '</td>' +
-      '<td><div class="ops">' +
-      '<button data-act="memo" data-id="' + u.id + '" class="primary small">' + (u.memoIssued ? '再印刷' : '処方メモ発行') + '</button>' +
-      '<button data-act="edit" data-id="' + u.id + '" class="small">編集</button>' +
-      (u.memoIssued ? '<button data-act="unissue" data-id="' + u.id + '" class="small">未発行に戻す</button>' : '') +
-      '<button data-act="delete" data-id="' + u.id + '" class="small danger">削除</button>' +
-      '</div></td></tr>'
-    ).join('') || '<tr><td colspan="7" class="empty">使用記録はありません</td></tr>';
+  function stampNow() {
+    const now = new Date();
+    return L.toISO(now) + 'T' + now.toTimeString().slice(0, 8);
   }
 
-  ['#usage-search', '#usage-filter-memo'].forEach((sel) => $(sel).addEventListener('input', renderUsage));
+  // 画面の絞り込み・並び順を反映した使用記録
+  function usageRows() {
+    const q = $('#usage-search').value.trim();
+    const memo = $('#usage-filter-memo').value;
+    const doc = $('#usage-filter-doctor').value;
+    const sort = $('#usage-sort').value;
+    const rows = db.usages.filter((u) => {
+      const st = L.memoState(u);
+      if (memo === 'waiting' && st !== 'waiting') return false;
+      if (memo === 'no' && st !== 'unissued') return false;
+      if (memo === 'yes' && st === 'unissued') return false;
+      if (memo === 'written' && st !== 'written') return false;
+      if (doc && L.doctorKey(u.doctorName) !== doc) return false;
+      if (q && !(u.patientName + ' ' + u.doctorName + ' ' + u.drugName).includes(q)) return false;
+      return true;
+    });
+    const byNo = (a, b) => b.no - a.no;
+    // 指示未記載 → 未発行 → 記載済み。未記載の中では発行が古い（待たせている）順
+    const waitFirst = (a, b) => {
+      const sa = L.memoState(a), sb = L.memoState(b);
+      if (sa !== sb) return MEMO_ORDER[sa] - MEMO_ORDER[sb];
+      if (sa === 'waiting') return String(a.memoIssuedAt).localeCompare(String(b.memoIssuedAt)) || byNo(a, b);
+      return byNo(a, b);
+    };
+    if (sort === 'waiting') rows.sort(waitFirst);
+    else if (sort === 'doctor') {
+      rows.sort((a, b) => L.doctorKey(a.doctorName).localeCompare(L.doctorKey(b.doctorName), 'ja') || waitFirst(a, b));
+    } else if (sort === 'start') rows.sort((a, b) => String(a.startDate).localeCompare(String(b.startDate)) || a.no - b.no);
+    else rows.sort(byNo);
+    return rows;
+  }
+
+  function memoCell(u) {
+    const st = L.memoState(u);
+    if (st === 'unissued') return '<span class="chip yellow">未発行</span>';
+    if (st === 'written') {
+      return '<span class="chip green">指示記載済</span>' +
+        (u.instructedAt ? '<br><small>確認 ' + esc(fmtISO(u.instructedAt.slice(0, 10))) + '</small>' : '');
+    }
+    const days = L.waitingDays(u, today());
+    return '<span class="chip red">指示未記載</span><br><small>発行 ' + esc(fmtISO(String(u.memoIssuedAt).slice(0, 10))) +
+      (days != null ? '（' + days + '日経過）' : '') + '</small>';
+  }
+
+  function renderUsage() {
+    // 医師の絞り込み（未記載の件数つき）
+    const groups = L.groupByDoctor(db.usages);
+    const waitingOf = (g) => g.items.filter((u) => L.memoState(u) === 'waiting').length;
+    const docSel = $('#usage-filter-doctor');
+    const prevDoc = docSel.value;
+    docSel.innerHTML = '<option value="">医師: すべて</option>' + groups.map((g) => {
+      const n = waitingOf(g);
+      return '<option value="' + esc(g.key) + '">' + esc(g.name) + (n ? '（指示未記載 ' + n + '）' : '') + '</option>';
+    }).join('');
+    docSel.value = groups.some((g) => g.key === prevDoc) ? prevDoc : '';
+
+    const rows = usageRows();
+
+    // 集計
+    const cnt = { waiting: 0, unissued: 0, written: 0 };
+    db.usages.forEach((u) => { cnt[L.memoState(u)]++; });
+    $('#usage-summary').innerHTML =
+      '使用記録 <b>' + db.usages.length + '</b> 件　' +
+      '<span class="chip red">指示未記載 ' + cnt.waiting + '</span>' +
+      '<span class="chip yellow">メモ未発行 ' + cnt.unissued + '</span>' +
+      '<span class="chip green">記載済 ' + cnt.written + '</span>' +
+      (cnt.waiting
+        ? '<span class="sum-docs">指示未記載の医師別：' + groups.filter(waitingOf).map((g) =>
+          '<button type="button" class="chip red link" data-doc="' + esc(g.key) + '" title="この医師の未記載だけを表示">' +
+          esc(g.name) + ' ' + waitingOf(g) + '件</button>').join('') + '</span>'
+        : '');
+    const badge = $('#usage-badge');
+    badge.textContent = cnt.waiting;
+    badge.hidden = !cnt.waiting;
+
+    // 「表示中をすべて記載済にする」は、指示未記載で絞り込んでいるときだけ
+    const markAll = $('#usage-mark-all');
+    markAll.hidden = !($('#usage-filter-memo').value === 'waiting' && rows.length);
+
+    $('#usage-table tbody').innerHTML = rows.map((u) => {
+      const st = L.memoState(u);
+      return '<tr class="row-' + st + '">' +
+        '<td class="num">' + u.no + '</td>' +
+        '<td>' + esc(u.patientName) + '</td>' +
+        '<td>' + fmtISO(u.startDate) + '</td>' +
+        '<td>' + esc(u.doctorName) + '</td>' +
+        '<td>' + esc(u.drugName) + '</td>' +
+        '<td>' + memoCell(u) + '</td>' +
+        '<td><div class="ops">' +
+        (st === 'waiting' ? '<button data-act="written" data-id="' + u.id + '" class="small ok" title="医師が処方メモに指示を記載したことを記録します">指示記載を確認</button>' : '') +
+        (st === 'written' ? '<button data-act="unwritten" data-id="' + u.id + '" class="small">記載を取り消す</button>' : '') +
+        '<button data-act="memo" data-id="' + u.id + '" class="' + (st === 'unissued' ? 'primary ' : '') + 'small">' + (st === 'unissued' ? '処方メモ発行' : '再印刷') + '</button>' +
+        '<button data-act="edit" data-id="' + u.id + '" class="small">編集</button>' +
+        (st !== 'unissued' ? '<button data-act="unissue" data-id="' + u.id + '" class="small">未発行に戻す</button>' : '') +
+        '<button data-act="delete" data-id="' + u.id + '" class="small danger">削除</button>' +
+        '</div></td></tr>';
+    }).join('') || '<tr><td colspan="7" class="empty">該当する使用記録はありません</td></tr>';
+  }
+
+  ['#usage-search', '#usage-filter-memo', '#usage-filter-doctor', '#usage-sort'].forEach((sel) => $(sel).addEventListener('input', renderUsage));
+
+  // 医師別の件数をクリックすると、その医師の未記載だけを表示
+  $('#usage-summary').addEventListener('click', (e) => {
+    const b = e.target.closest('button[data-doc]');
+    if (!b) return;
+    $('#usage-filter-memo').value = 'waiting';
+    $('#usage-filter-doctor').value = b.dataset.doc;
+    $('#usage-sort').value = 'waiting';
+    renderUsage();
+  });
+
+  $('#usage-mark-all').addEventListener('click', () => {
+    const targets = usageRows().filter((u) => L.memoState(u) === 'waiting');
+    if (!targets.length) return;
+    const docs = Array.from(new Set(targets.map((u) => u.doctorName))).join('、');
+    if (!confirm('表示中の ' + targets.length + ' 件（' + docs + '）を、医師の指示が記載済みとして記録します。\nよろしいですか？')) return;
+    const stamp = stampNow();
+    targets.forEach((u) => { u.instructed = true; u.instructedAt = stamp; });
+    save();
+    render();
+  });
 
   $('#usage-table').addEventListener('click', (e) => {
     const b = e.target.closest('button[data-act]');
@@ -560,7 +670,9 @@
     switch (b.dataset.act) {
       case 'memo': openMemo([u]); break;
       case 'edit': openUseDialog(null, u); break;
-      case 'unissue': u.memoIssued = false; u.memoIssuedAt = ''; save(); render(); break;
+      case 'written': u.instructed = true; u.instructedAt = stampNow(); save(); render(); break;
+      case 'unwritten': u.instructed = false; u.instructedAt = ''; save(); render(); break;
+      case 'unissue': u.memoIssued = false; u.memoIssuedAt = ''; u.instructed = false; u.instructedAt = ''; save(); render(); break;
       case 'delete':
         if (confirm('No.' + u.no + ' の使用記録を削除しますか？')) {
           db.usages = db.usages.filter((x) => x !== u); save(); render();
@@ -571,28 +683,90 @@
 
   // データシート形式で Excel 出力 (患者名 / 使用開始日 / 開始指示医師 / 処方メモ発行 を先頭に配置)
   $('#usage-export').addEventListener('click', () => {
-    const rows = db.usages.slice().sort((a, b) => a.no - b.no).map((u) => ({
-      'No.': u.no,
-      '患者名': u.patientName,
-      '使用開始日': fmtISO(u.startDate),
-      '開始指示医師': u.doctorName,
-      '処方メモ発行': u.memoIssued ? '済' : '未',
-      'メモ発行日': u.memoIssuedAt ? fmtISO(u.memoIssuedAt.slice(0, 10)) : '',
-      '患者ID': u.patientId || '',
-      '区分': u.category,
-      '薬剤名': u.drugName,
-      '数量': u.quantity ? u.quantity + (u.unit || '') : '',
-      'お守り薬の処方日': fmtISO(u.prescribedDate),
-      'お守り薬の処方医': u.prescriber || '',
-      '記入者': u.recorder || '',
-      '備考': u.note || '',
-    }));
-    const ws = XLSX.utils.json_to_sheet(rows.length ? rows : [{ 'No.': '', '患者名': '', '使用開始日': '', '開始指示医師': '', '処方メモ発行': '' }]);
-    ws['!cols'] = [6, 14, 12, 12, 10, 12, 10, 10, 24, 8, 6, 24, 12, 12, 10, 20].map((w) => ({ wch: w }));
+    const rows = db.usages.slice().sort((a, b) => a.no - b.no).map((u) => {
+      const st = L.memoState(u);
+      const days = st === 'waiting' ? L.waitingDays(u, today()) : null;
+      return {
+        'No.': u.no,
+        '患者名': u.patientName,
+        '使用開始日': fmtISO(u.startDate),
+        '開始指示医師': u.doctorName,
+        '処方メモ発行': u.memoIssued ? '済' : '未',
+        'メモ発行日': u.memoIssuedAt ? fmtISO(u.memoIssuedAt.slice(0, 10)) : '',
+        '医師の指示記載': st === 'written' ? '済' : st === 'waiting' ? '未' : '',
+        '記載確認日': u.instructedAt ? fmtISO(u.instructedAt.slice(0, 10)) : '',
+        '未記載の経過日数': days == null ? '' : days,
+        '患者ID': u.patientId || '',
+        '区分': u.category,
+        '薬剤名': u.drugName,
+        '数量': u.quantity ? u.quantity + (u.unit || '') : '',
+        'お守り薬の処方日': fmtISO(u.prescribedDate),
+        'お守り薬の処方医': u.prescriber || '',
+        '記入者': u.recorder || '',
+        '備考': u.note || '',
+      };
+    });
+    const ws = XLSX.utils.json_to_sheet(rows.length ? rows : [{ 'No.': '', '患者名': '', '使用開始日': '', '開始指示医師': '', '処方メモ発行': '', 'メモ発行日': '', '医師の指示記載': '' }]);
+    ws['!cols'] = [6, 14, 12, 12, 10, 12, 12, 12, 12, 10, 10, 24, 8, 12, 24, 12, 12, 20].map((w) => ({ wch: w }));
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, 'データシート');
     XLSX.writeFile(wb, '在庫薬使用データシート_' + L.toISO(today()) + '.xlsx');
   });
+
+  // ---------- 医師別 指示未記載一覧（印刷用） ----------
+  function waitingTargets() {
+    const incl = $('#waiting-include-unissued').checked;
+    return db.usages.filter((u) => {
+      const st = L.memoState(u);
+      return st === 'waiting' || (incl && st === 'unissued');
+    });
+  }
+
+  function renderWaitingList() {
+    const sel = $('#waiting-doctor');
+    const prev = sel.value;
+    const groups = L.groupByDoctor(waitingTargets());
+    sel.innerHTML = '<option value="">医師: すべて（医師ごとに1ページ）</option>' +
+      groups.map((g) => '<option value="' + esc(g.key) + '">' + esc(g.name) + '（' + g.items.length + '件）</option>').join('');
+    sel.value = groups.some((g) => g.key === prev) ? prev : '';
+    const shown = groups.filter((g) => !sel.value || g.key === sel.value);
+    const now = today();
+    $('#waiting-sheet').innerHTML = shown.map((g) => {
+      const rows = g.items.map((u) => {
+        const days = L.waitingDays(u, now);
+        const unissued = L.memoState(u) === 'unissued';
+        return '<tr' + (!unissued && days != null && days >= 7 ? ' class="over"' : '') + '>' +
+          '<td class="c">' + u.no + '</td>' +
+          '<td>' + esc(u.patientName) + (u.patientId ? '<br><small>ID: ' + esc(u.patientId) + '</small>' : '') + '</td>' +
+          '<td>' + esc(u.drugName) + '</td>' +
+          '<td class="c">' + fmtISO(u.startDate) + '</td>' +
+          '<td class="c">' + (unissued ? '（メモ未発行）' : fmtISO(String(u.memoIssuedAt).slice(0, 10))) + '</td>' +
+          '<td class="c">' + (unissued || days == null ? '' : days + '日') + '</td>' +
+          '<td class="c chk">□</td></tr>';
+      }).join('');
+      return '<div class="wl">' +
+        '<div class="wl-date">作成日 ' + L.formatDate(now) + '</div>' +
+        '<h2 class="memo-title">' + esc(db.settings.memoTitle) + '　指示未記載一覧</h2>' +
+        '<div class="wl-doc">' + esc(g.name) + '　先生　（' + g.items.length + '件）</div>' +
+        '<p class="wl-note">下記の処方メモに、先生の指示の記載がまだありません。ご確認をお願いします。</p>' +
+        '<table class="wl-table"><thead><tr><th>No.</th><th>患者名</th><th>薬剤名</th><th>使用開始日</th><th>メモ発行日</th><th>経過</th><th>記載</th></tr></thead>' +
+        '<tbody>' + rows + '</tbody></table></div>';
+    }).join('') || '<div class="wl"><div class="wl-empty">処方メモに指示が未記載の使用記録はありません。</div></div>';
+  }
+
+  function openWaitingList(docKey) {
+    $('#waiting-include-unissued').checked = false;
+    $('#waiting-doctor').value = '';
+    renderWaitingList();
+    if (docKey) { $('#waiting-doctor').value = docKey; renderWaitingList(); }
+    document.body.classList.add('waiting-open');
+  }
+
+  $('#usage-waiting-list').addEventListener('click', () => openWaitingList($('#usage-filter-doctor').value));
+  $('#waiting-doctor').addEventListener('input', renderWaitingList);
+  $('#waiting-include-unissued').addEventListener('input', renderWaitingList);
+  $('#waiting-print').addEventListener('click', () => window.print());
+  $('#waiting-close').addEventListener('click', () => document.body.classList.remove('waiting-open'));
 
   // ---------- 処方メモ ----------
   let memoTargets = [];
