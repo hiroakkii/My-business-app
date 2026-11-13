@@ -67,7 +67,7 @@
   h2 .aside{margin-left:auto;font-weight:400;font-size:13px;color:var(--sub)}
 
   /* ---- 記録タブ：左に入力、右に直近 ---- */
-  .rec{display:grid;grid-template-columns:minmax(0,1.05fr) minmax(0,1fr);gap:12px;align-items:start}
+  .rec{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.15fr);gap:12px;align-items:start}
 
   .clock{display:flex;align-items:baseline;gap:14px;flex-wrap:wrap;margin:0 0 10px}
   .clock .val{
@@ -131,6 +131,8 @@
   td.rank{color:var(--sub);text-align:right}
   td.act{text-align:right;overflow:visible}
   .c-rank{width:44px}.c-bib{width:76px}.c-clk{width:136px}.c-time{width:104px}.c-medal{width:96px}.c-act{width:76px}.c-pclk{width:92px}
+  #recentTable .c-bib{width:60px}#recentTable .c-time{width:96px}#recentTable .c-medal{width:92px}#recentTable .c-act{width:64px}
+  #recentTable td{padding-left:6px;padding-right:6px}
   .missing{color:var(--warn);font-weight:700}
   .none{color:#A3ADB9}
   tr.fresh td{animation:flash 2.4s ease-out}
@@ -258,8 +260,8 @@
         </div>
         <div class="panel">
           <h2>直近の記録 <button class="btn quiet sm aside" onclick="showTab('list')" style="margin-left:auto">一覧を開く</button></h2>
-          <table>
-            <colgroup><col class="c-bib"><col><col class="c-time"><col class="c-act"></colgroup>
+          <table id="recentTable">
+            <colgroup><col class="c-bib"><col><col class="c-time"><col class="c-medal"><col class="c-act"></colgroup>
             <tbody id="recentBody"></tbody>
           </table>
         </div>
@@ -593,13 +595,14 @@ function rowRecent(r){                           // 記録タブの直近の1行
     <td class="num">${bibCell(r)}</td>
     <td title="${nameOf(r.bib)}">${nameCell(r)}</td>
     <td class="t">${timeCell(r)}</td>
+    <td>${medalCell(r)}</td>
     <td class="act">${editBtn(r)}</td>
   </tr>`;
 }
 function renderRecent(){
   const rs = [...state.finishes].sort((a,b)=>b.t-a.t).slice(0,8);
   $("recentBody").innerHTML = rs.length ? rs.map(rowRecent).join("")
-    : `<tr><td colspan="4" class="empty">まだ記録はありません。ゴールしたら受付番号を入れて「ゴール記録」を押します。</td></tr>`;
+    : `<tr><td colspan="5" class="empty">まだ記録はありません。ゴールしたら受付番号を入れて「ゴール記録」を押します。</td></tr>`;
   const pend = state.finishes.filter(f=>!f.bib).sort((a,b)=>a.t-b.t);
   $("pendingCard").style.display = pend.length? "block":"none";
   $("pendingPanelTitle").textContent = `受付番号が未入力の打刻（${pend.length}件）`;
