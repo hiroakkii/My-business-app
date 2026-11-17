@@ -184,13 +184,13 @@ body.memo-open #memo-overlay, body.waiting-open #waiting-overlay {
   width: 190mm; max-width: 100%; margin: 0 auto 16px; padding: 10mm 12mm; font-size: 14px; }
 .wl-date { text-align: right; font-size: 13px; }
 .wl-doc { font-size: 20px; font-weight: bold; margin: 8px 0 4px; }
-.wl-note { margin: 0 0 10px; }
-.wl-table { width: 100%; border-collapse: collapse; }
+.wl-table { width: 100%; border-collapse: collapse; table-layout: fixed; margin-top: 8px; }
 .wl-table th, .wl-table td { border: 1px solid #000; padding: 6px 8px; vertical-align: middle; }
 .wl-table th { background: #eee; text-align: center; }
 .wl-table td.c { text-align: center; white-space: nowrap; }
-.wl-table th, .wl-table td.chk { white-space: nowrap; }
-.wl-table td.chk { width: 13mm; }
+.wl-table th { white-space: nowrap; }
+.wl-table td.pn { white-space: nowrap; }
+.wl-table td.pn span { display: inline-block; font-size: 14px; }
 .wl-table tr.over td { font-weight: bold; }
 .wl-empty { padding: 24px; text-align: center; }
 

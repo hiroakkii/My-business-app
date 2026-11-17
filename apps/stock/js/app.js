@@ -736,30 +736,42 @@
         const days = L.waitingDays(u, now);
         const unissued = L.memoState(u) === 'unissued';
         return '<tr' + (!unissued && days != null && days >= 7 ? ' class="over"' : '') + '>' +
-          '<td class="c">' + u.no + '</td>' +
-          '<td>' + esc(u.patientName) + (u.patientId ? '<br><small>ID: ' + esc(u.patientId) + '</small>' : '') + '</td>' +
+          '<td class="pn"><span>' + esc(u.patientName) + '</span></td>' +
           '<td>' + esc(u.drugName) + '</td>' +
           '<td class="c">' + fmtISO(u.startDate) + '</td>' +
           '<td class="c">' + (unissued ? '（メモ未発行）' : fmtISO(String(u.memoIssuedAt).slice(0, 10))) + '</td>' +
-          '<td class="c">' + (unissued || days == null ? '' : days + '日') + '</td>' +
-          '<td class="c chk">□</td></tr>';
+          '<td class="c">' + (unissued || days == null ? '' : days + '日') + '</td></tr>';
       }).join('');
       return '<div class="wl">' +
         '<div class="wl-date">作成日 ' + L.formatDate(now) + '</div>' +
         '<h2 class="memo-title">' + esc(db.settings.memoTitle) + '　指示未記載一覧</h2>' +
-        '<div class="wl-doc">' + esc(g.name) + '　先生　（' + g.items.length + '件）</div>' +
-        '<p class="wl-note">下記の処方メモに、先生の指示の記載がまだありません。ご確認をお願いします。</p>' +
-        '<table class="wl-table"><thead><tr><th>No.</th><th>患者名</th><th>薬剤名</th><th>使用開始日</th><th>メモ発行日</th><th>経過</th><th>記載</th></tr></thead>' +
+        '<div class="wl-doc">' + esc(g.name) + '　（' + g.items.length + '件）</div>' +
+        '<table class="wl-table"><colgroup><col style="width:36%"><col style="width:26%"><col style="width:15%"><col style="width:15%"><col style="width:8%"></colgroup>' +
+        '<thead><tr><th>患者名</th><th>薬剤名</th><th>使用開始日</th><th>メモ発行日</th><th>経過</th></tr></thead>' +
         '<tbody>' + rows + '</tbody></table></div>';
     }).join('') || '<div class="wl"><div class="wl-empty">処方メモに指示が未記載の使用記録はありません。</div></div>';
+    fitPatientNames();
+  }
+
+  // 患者名が長くて列に収まらないときは、2段に折り返さず文字を小さくして1行に収める
+  // （画面の表示は印刷より狭いので、画面で収まれば印刷でも収まる）
+  function fitPatientNames() {
+    $$('#waiting-sheet td.pn').forEach((td) => {
+      const span = td.firstElementChild;
+      const avail = td.clientWidth - 16;
+      if (!span || avail <= 0) return;
+      let size = 14;
+      span.style.fontSize = size + 'px';
+      while (span.offsetWidth > avail && size > 7) { size -= 0.5; span.style.fontSize = size + 'px'; }
+    });
   }
 
   function openWaitingList(docKey) {
     $('#waiting-include-unissued').checked = false;
     $('#waiting-doctor').value = '';
+    document.body.classList.add('waiting-open');   // 表示してから描画する（文字の大きさを幅に合わせるため）
     renderWaitingList();
     if (docKey) { $('#waiting-doctor').value = docKey; renderWaitingList(); }
-    document.body.classList.add('waiting-open');
   }
 
   $('#usage-waiting-list').addEventListener('click', () => openWaitingList($('#usage-filter-doctor').value));
