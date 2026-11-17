@@ -6,6 +6,29 @@ const L = require('../js/logic.js');
 const d = (s) => L.parseDate(s);
 const fmt = (x) => L.formatDate(x);
 
+test('検索: ひらがな・カタカナ・半角カナ・全角英数・空白の違いを無視する', () => {
+  // 架空の患者（実在の方の名前は使わない）
+  const f = ['試験 太郎', 'しけん たろう', 'P001', 'アモキシシリンカプセル250mg'];
+  assert.ok(L.matchesQuery(f, 'しけん'));            // ふりがな（ひらがな）
+  assert.ok(L.matchesQuery(f, 'シケン'));            // ふりがなをカタカナで
+  assert.ok(L.matchesQuery(f, 'ｼｹﾝﾀﾛｳ'));          // 半角カナ
+  assert.ok(L.matchesQuery(f, 'しけんたろう'));        // 空白なし
+  assert.ok(L.matchesQuery(f, 'あもき'));            // 薬剤名をひらがなで
+  assert.ok(L.matchesQuery(f, 'ＡＭＯ') === false);   // 英字の薬剤名ではない
+  assert.ok(L.matchesQuery(f, '２５０ＭＧ'));          // 全角英数
+  assert.ok(L.matchesQuery(f, 'p001'));
+  assert.ok(L.matchesQuery(f, '試験'));              // 漢字のまま
+  assert.ok(!L.matchesQuery(f, 'すずき'));
+});
+
+test('検索: 空白で区切ると、すべての語を含むものだけが一致する', () => {
+  const f = ['試験 太郎', 'しけん たろう', '', 'アモキシシリン'];
+  assert.ok(L.matchesQuery(f, 'しけん あもき'));
+  assert.ok(!L.matchesQuery(f, 'しけん せふ'));
+  assert.ok(L.matchesQuery(f, '   '));
+  assert.ok(L.matchesQuery(f, ''));
+});
+
 test('処方メモの状態: 未発行 / 指示未記載 / 記載済み', () => {
   assert.equal(L.memoState({ memoIssued: false }), 'unissued');
   assert.equal(L.memoState({ memoIssued: false, instructed: true }), 'unissued');
