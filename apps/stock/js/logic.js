@@ -129,6 +129,23 @@
     return (y ? y + '年' : '') + (m ? m + 'ヶ月' : '') || '0ヶ月';
   }
 
+  // ---- 検索 ----
+  // ひらがな／カタカナ、全角／半角、大文字／小文字、空白の違いを無視して比べるための形
+  function searchNorm(s) {
+    return String(s == null ? '' : s).normalize('NFKC')
+      .replace(/[ぁ-ゖ]/g, function (c) { return String.fromCharCode(c.charCodeAt(0) + 0x60); })
+      .replace(/\s+/g, '')
+      .toLowerCase();
+  }
+
+  // 検索語（空白区切りで複数可・すべてを含むものが一致）が、いずれかの項目に含まれるか
+  function matchesQuery(fields, query) {
+    const terms = String(query || '').normalize('NFKC').split(/\s+/).map(searchNorm).filter(Boolean);
+    if (!terms.length) return true;
+    const hay = fields.map(searchNorm);
+    return terms.every(function (t) { return hay.some(function (h) { return h.includes(t); }); });
+  }
+
   // ---- 処方メモの状態 ----
   // 'unissued' : 処方メモ未発行
   // 'waiting'  : 発行済だが、医師の指示記載をまだ確認していない（処方メモに指示が書かれていない）
@@ -169,6 +186,8 @@
   }
 
   return {
+    searchNorm: searchNorm,
+    matchesQuery: matchesQuery,
     memoState: memoState,
     doctorKey: doctorKey,
     waitingDays: waitingDays,

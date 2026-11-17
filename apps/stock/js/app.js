@@ -171,11 +171,16 @@
   // 見出しを押したときの並べ替え（key が空なら元の並び）。dir: 1=昇順(▲) / -1=降順(▼)
   const stockSort = { key: '', dir: 1 };
 
-  // 患者名の並べ替えには、患者マスタのふりがなを使う（無ければ氏名）
-  function patientSortKey(s) {
+  // 患者マスタのふりがな（ID、無ければ氏名で探す）
+  function patientKana(s) {
     const p = (s.patientId && db.patients.find((x) => x.id === s.patientId)) ||
       db.patients.find((x) => x.name === s.patientName);
-    return (p && p.kana) || s.patientName || '';
+    return (p && p.kana) || '';
+  }
+
+  // 患者名の並べ替えには、患者マスタのふりがなを使う（無ければ氏名）
+  function patientSortKey(s) {
+    return patientKana(s) || s.patientName || '';
   }
 
   function stockSortValue(r, key) {
@@ -246,7 +251,8 @@
         if (!showClosed && s.state !== '在庫' && !pending) return false;
         if (cat && s.category !== cat) return false;
         if (st && (!info || info.status !== st)) return false;
-        if (q && !(s.patientName + ' ' + s.drugName + ' ' + (s.patientId || '')).includes(q)) return false;
+        // 患者名・ふりがな（患者マスタ）・患者ID・薬剤名で検索。ひらがな／カタカナ、全角／半角の違いは無視
+        if (q && !L.matchesQuery([s.patientName, patientKana(s), s.patientId, s.drugName], q)) return false;
         return true;
       })
       .sort((a, b) => (byColumn && byColumn(a, b)) || standard(a, b));
