@@ -1,0 +1,8 @@
+{
+  "name": "antibiotic-stock-control",
+  "private": true,
+  "description": "在宅 抗菌薬・解熱鎮痛薬 在庫管理",
+  "scripts": {
+    "test": "node --test tests/*.test.js"
+  }
+}

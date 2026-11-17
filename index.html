@@ -1,0 +1,908 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<!-- このページ自体は外部と通信しません。各アプリの通信設定は、それぞれのアプリの index.html に従います -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; frame-src 'self'; img-src 'self' data:; connect-src 'none'; form-action 'none'; object-src 'none'; base-uri 'none'">
+<title>業務アプリ</title>
+<style>
+:root{
+  --bar:#24364b; --bar-ink:#e6edf5; --tab-hover:#33495f;
+  --active-bg:#f4f6f8; --active-ink:#1f2933; --accent:#3d8bd9;
+}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%;overflow:hidden;background:#f4f6f8}
+body{display:flex;flex-direction:column;
+  font:14px/1.4 "Yu Gothic UI","Meiryo UI","Hiragino Kaku Gothic ProN",sans-serif}
+nav{flex:0 0 auto;display:flex;align-items:flex-end;gap:2px;background:var(--bar);
+  padding:6px 8px 0;overflow-x:auto;scrollbar-width:thin}
+/* 左上のアプリ名：タブと見分けがつくよう、アイコン付きの見出しにして区切り線で分ける */
+nav .brand{flex:0 0 auto;align-self:center;display:flex;align-items:center;gap:8px;
+  margin:0 10px 6px 2px;padding:0 14px 0 0;border-right:1px solid rgba(255,255,255,.22);
+  color:#fff;font-size:15px;font-weight:700;letter-spacing:.06em;white-space:nowrap;
+  cursor:default;user-select:none;-webkit-user-select:none}
+nav .brand-icon{display:grid;place-items:center;width:26px;height:26px;border-radius:7px;
+  background:var(--accent);box-shadow:inset 0 0 0 1px rgba(255,255,255,.18)}
+nav .brand-icon svg{display:block}
+nav button{appearance:none;border:0;border-radius:6px 6px 0 0;background:transparent;
+  color:var(--bar-ink);font:inherit;font-weight:600;padding:8px 16px 9px;cursor:pointer;
+  white-space:nowrap;border-top:3px solid transparent}
+nav button:hover{background:var(--tab-hover)}
+nav button[aria-selected="true"]{background:var(--active-bg);color:var(--active-ink);
+  border-top-color:var(--accent)}
+nav button:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
+/* タブの並べ替え（ドラッグ） */
+nav button.tab{position:relative;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none}
+nav button.tab.dragging{z-index:2;cursor:grabbing;box-shadow:0 4px 14px rgba(0,0,0,.35);
+  background:var(--tab-hover);color:var(--bar-ink)}
+nav button.tab.dragging[aria-selected="true"]{background:var(--active-bg);color:var(--active-ink)}
+nav.reordering button.tab:not(.dragging){transition:transform .15s ease}
+nav.reordering{cursor:grabbing}
+nav .tools{margin-left:auto;align-self:center;display:flex;gap:8px;margin-bottom:6px;padding-left:12px}
+nav .tools button{border-radius:4px;font-size:12px;padding:4px 12px;white-space:nowrap}
+nav .import{background:var(--accent);color:#fff;font-weight:600}
+nav .import:hover{background:#2f78c2}
+nav .reset{align-self:center;margin-bottom:6px;padding:3px 10px;font-size:12px;
+  font-weight:400;border-radius:4px;border:1px solid rgba(255,255,255,.3);opacity:.85}
+nav .reset:hover{opacity:1}
+nav .reset[hidden]{display:none}
+/* 患者マスタ一括取込 */
+#bulk{border:0;border-radius:10px;padding:0;width:min(560px,94vw);color:#1f2933;
+  box-shadow:0 12px 40px rgba(0,0,0,.35)}
+#bulk::backdrop{background:rgba(20,30,45,.45)}
+#bulk h2{margin:0;padding:16px 20px 10px;font-size:17px}
+#bulk .body{padding:0 20px 8px}
+#bulk p{margin:6px 0 10px;color:#4a5662;font-size:13px}
+#bulk ul{list-style:none;margin:0 0 8px;padding:0;border:1px solid #d9dfe5;border-radius:6px}
+#bulk li{display:flex;gap:10px;align-items:flex-start;padding:9px 12px;border-top:1px solid #eef1f4}
+#bulk li:first-child{border-top:0}
+#bulk li label{display:flex;gap:8px;align-items:center;font-weight:600;flex:0 0 auto;min-width:12em}
+#bulk li .res{flex:1;font-size:12.5px;color:#4a5662;white-space:pre-wrap;word-break:break-word}
+#bulk li .res.ok{color:#1d7a3e}
+#bulk li .res.ng{color:#b3261e}
+#bulk .foot{display:flex;gap:8px;justify-content:flex-end;padding:12px 20px 16px;border-top:1px solid #eef1f4}
+#bulk .foot button{font:inherit;padding:7px 16px;border-radius:6px;border:1px solid #c6ced6;background:#fff;cursor:pointer}
+#bulk .foot button.primary{background:var(--accent);border-color:var(--accent);color:#fff;font-weight:600}
+#bulk .foot button:disabled{opacity:.5;cursor:default}
+#bulk .file{font-size:13px;margin:0 0 8px}
+/* バックアップ・データ削除 */
+#data{border:0;border-radius:10px;padding:0;width:min(620px,94vw);color:#1f2933;box-shadow:0 12px 40px rgba(0,0,0,.35)}
+#data::backdrop{background:rgba(20,30,45,.45)}
+#data h2{margin:0;padding:16px 20px 6px;font-size:17px}
+#data section{margin:10px 20px;padding:12px 14px;border:1px solid #d9dfe5;border-radius:8px}
+#data section.danger{border-color:#e7b8b4;background:#fdf6f5}
+#data h3{margin:0 0 6px;font-size:14px}
+#data p{margin:4px 0 8px;color:#4a5662;font-size:12.5px}
+#data .row{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+#data .pw{display:inline-flex;align-items:stretch}
+#data .pw input{font:inherit;padding:5px 8px;border:1px solid #c6ced6;border-right:0;border-radius:5px 0 0 5px;width:11em}
+#data .pw input[aria-invalid="true"]{border-color:#b3261e;background:#fdf1f0}
+#data .pw button.eye{border-radius:0 5px 5px 0;padding:0 9px;font-size:12px;min-width:4.2em;color:#4a5662}
+#data .pw button.eye[aria-pressed="true"]{background:#eef3f8;color:#1f2933}
+#data .pwmsg{margin:6px 0 0;font-size:12.5px;min-height:1.3em}
+#data .pwmsg.ng{color:#b3261e;font-weight:600}
+#data .pwmsg.ok{color:#1d7a3e}
+#data .pwmsg.hint{color:#4a5662}
+#data button{font:inherit;padding:6px 14px;border-radius:6px;border:1px solid #c6ced6;background:#fff;cursor:pointer}
+#data button.primary{background:var(--accent);border-color:var(--accent);color:#fff;font-weight:600}
+#data button.danger{background:#b3261e;border-color:#b3261e;color:#fff;font-weight:600}
+#data button:disabled{opacity:.5;cursor:default}
+#data .apps{display:flex;flex-wrap:wrap;gap:4px 14px;margin:4px 0 8px;font-size:13px}
+#data label{display:inline-flex;gap:5px;align-items:center}
+#data .status{margin:0 20px;min-height:1.4em;font-size:13px;white-space:pre-wrap}
+#data .status.ok{color:#1d7a3e}
+#data .status.ng{color:#b3261e}
+#data .foot{display:flex;justify-content:flex-end;padding:10px 20px 16px}
+#frames{flex:1 1 auto;position:relative;min-height:0}
+#frames iframe{position:absolute;inset:0;width:100%;height:100%;border:0;background:#fff}
+#frames iframe[hidden]{display:none}
+@media print{
+  /* 印刷は各アプリの中の「印刷」ボタンから行ってください（アプリ内だけが印刷されます） */
+  nav{display:none}
+}
+</style>
+</head>
+<body>
+<nav role="tablist" aria-label="アプリ切り替え">
+  <span class="brand" aria-hidden="true"><span class="brand-icon"><svg width="14" height="14" viewBox="0 0 14 14" fill="#fff"><rect x="0" y="0" width="6" height="6" rx="1.5"/><rect x="8" y="0" width="6" height="6" rx="1.5"/><rect x="0" y="8" width="6" height="6" rx="1.5"/><rect x="8" y="8" width="6" height="6" rx="1.5" opacity=".55"/></svg></span>業務アプリ</span>
+</nav>
+<div id="frames"></div>
+<dialog id="data" aria-labelledby="data-title">
+  <h2 id="data-title">バックアップ・データ削除</h2>
+  <section>
+    <h3>一括バックアップ</h3>
+    <p>5つのアプリのデータ（患者マスタ・登録データ・設定）を1つのファイルに保存します。
+      パスワードを入れると暗号化して保存します（<b>忘れると復元できません</b>）。パスワードなしのファイルは誰でも中身を読めるので、保管場所に注意してください。<br>
+      ※ 指示書の郵便番号データと、ワクチン接種管理の保存先フォルダの設定は含みません（復元後に設定し直してください）。</p>
+    <div class="row">
+      <span class="pw"><input type="password" id="data-pw" placeholder="パスワード（任意）" autocomplete="new-password"><button type="button" class="eye" data-for="data-pw" aria-pressed="false" title="入力したパスワードを表示します">表示</button></span>
+      <span class="pw"><input type="password" id="data-pw2" placeholder="パスワード（確認）" autocomplete="new-password"><button type="button" class="eye" data-for="data-pw2" aria-pressed="false" title="入力したパスワードを表示します">表示</button></span>
+      <button type="button" class="primary" id="data-backup">バックアップを保存</button>
+    </div>
+    <div class="pwmsg" id="data-pwmsg" aria-live="polite"></div>
+  </section>
+  <section>
+    <h3>一括復元</h3>
+    <p>一括バックアップのファイルから、バックアップに入っているアプリのデータを<b>すべて置き換えて</b>戻します。
+      暗号化したファイルは、バックアップしたときのパスワードを入れてから選んでください。各アプリ個別のバックアップファイルは、それぞれのアプリで復元してください。</p>
+    <div class="row">
+      <span class="pw"><input type="password" id="data-rpw" placeholder="パスワード（暗号化したファイルのみ）" autocomplete="current-password" style="width:16em"><button type="button" class="eye" data-for="data-rpw" aria-pressed="false" title="入力したパスワードを表示します">表示</button></span>
+      <button type="button" id="data-restore">ファイルを選んで復元</button>
+    </div>
+    <input type="file" id="data-restore-input" accept=".json" hidden>
+  </section>
+  <section class="danger">
+    <h3>ブラウザデータの一括削除</h3>
+    <p>このPCのブラウザに保存されている、選んだアプリのデータをすべて削除します（共用PCで使い終わったときなど）。元に戻せません。<br>
+      ほかのツールのデータや、タブの並び順などのこの画面の設定は削除しません。</p>
+    <div class="apps" id="data-apps"></div>
+    <div class="row">
+      <label><input type="checkbox" id="data-del-backup" checked> 削除する前にバックアップを保存する（上のパスワードを使います）</label>
+    </div>
+    <div class="row" style="margin-top:8px"><button type="button" class="danger" id="data-delete">選んだアプリのデータを削除</button></div>
+  </section>
+  <div class="status" id="data-status" role="status"></div>
+  <div class="foot"><button type="button" id="data-close">閉じる</button></div>
+</dialog>
+<dialog id="bulk" aria-labelledby="bulk-title">
+  <h2 id="bulk-title">患者マスタ一括取込</h2>
+  <div class="body">
+    <p>選んだ Excel ファイルを、チェックしたアプリの患者マスタに取り込みます。<br>
+      各アプリの患者マスタはこのファイルの内容に置き換わります（登録済みのデータはそのまま残ります）。<br>
+      取り込みの内容は各アプリで個別に取り込んだときと同じです（ID に「WA」・名前に「[亘]」の患者は、訪問リスト印刷以外では除外されます）。</p>
+    <div class="file" id="bulk-file"></div>
+    <ul id="bulk-list"></ul>
+  </div>
+  <div class="foot">
+    <button type="button" id="bulk-close">閉じる</button>
+    <button type="button" class="primary" id="bulk-pick">ファイルを選んで取り込む</button>
+  </div>
+  <input type="file" id="bulk-input" accept=".xlsx,.xlsm,.xls,.csv" hidden>
+</dialog>
+<script>
+(function(){
+  'use strict';
+  // タブの一覧。アプリを追加・変更するときはここを編集します
+  var APPS = [
+    { id:'stock',      label:'薬剤在庫管理',         src:'apps/stock/index.html' },
+    { id:'order',      label:'在宅移行初期管理料 指示書', src:'apps/order/index.html' },
+    { id:'visit-list', label:'訪問リスト印刷',        src:'apps/visit-list/index.html' },
+    { id:'vaccine',    label:'ワクチン接種管理',      src:'apps/vaccine/index.html' },
+    { id:'jisan',      label:'持参薬管理',           src:'apps/jisan/index.html' }
+  ];
+  var LAST_KEY = 'businessApp.portal.lastTab';
+  var ORDER_KEY = 'businessApp.portal.tabOrder';
+  var DEFAULT_ORDER = APPS.map(function(a){ return a.id; });
+  // 保存してある並び順を反映（新しく増えたタブは最後に付ける）
+  (function(){
+    var saved;
+    try { saved = JSON.parse(localStorage.getItem(ORDER_KEY) || 'null'); } catch(e) {}
+    if (!Array.isArray(saved)) return;
+    APPS.sort(function(a, b){
+      var i = saved.indexOf(a.id), j = saved.indexOf(b.id);
+      return (i < 0 ? 1e9 + DEFAULT_ORDER.indexOf(a.id) : i) - (j < 0 ? 1e9 + DEFAULT_ORDER.indexOf(b.id) : j);
+    });
+  })();
+  var nav = document.querySelector('nav');
+  var box = document.getElementById('frames');
+  var tabs = {}, frames = {};
+
+  APPS.forEach(function(app){
+    var b = document.createElement('button');
+    b.type = 'button';
+    b.id = 'tab-' + app.id;
+    b.className = 'tab';
+    b.title = 'ドラッグで並べ替えできます';
+    b.setAttribute('role','tab');
+    b.setAttribute('aria-selected','false');
+    b.setAttribute('aria-controls','frame-' + app.id);
+    b.textContent = app.label;
+    b.addEventListener('click', function(){ show(app.id); });
+    nav.appendChild(b);
+    tabs[app.id] = b;
+  });
+
+  var resetBtn = document.createElement('button');
+  resetBtn.type = 'button';
+  resetBtn.className = 'reset';
+  resetBtn.textContent = '並び順を元に戻す';
+  resetBtn.addEventListener('click', function(){
+    APPS.sort(function(a, b){ return DEFAULT_ORDER.indexOf(a.id) - DEFAULT_ORDER.indexOf(b.id); });
+    APPS.forEach(function(a){ nav.insertBefore(tabs[a.id], tools); });
+    try { localStorage.removeItem(ORDER_KEY); } catch(e) {}
+    updateReset();
+  });
+  var tools = document.createElement('div');
+  tools.className = 'tools';
+  var importBtn = document.createElement('button');
+  importBtn.type = 'button';
+  importBtn.className = 'import';
+  importBtn.textContent = '患者マスタ一括取込';
+  importBtn.title = '1つの Excel ファイルを、すべてのアプリの患者マスタにまとめて取り込みます';
+  var dataBtn = document.createElement('button');
+  dataBtn.type = 'button';
+  dataBtn.className = 'import';
+  dataBtn.textContent = 'バックアップ・データ削除';
+  dataBtn.title = 'すべてのアプリのデータをまとめてバックアップ・復元・削除します';
+  tools.appendChild(resetBtn);
+  tools.appendChild(importBtn);
+  tools.appendChild(dataBtn);
+  nav.appendChild(tools);
+
+  function tabEls(){ return Array.prototype.slice.call(nav.querySelectorAll('button.tab')); }
+  function updateReset(){
+    resetBtn.hidden = APPS.every(function(a, i){ return a.id === DEFAULT_ORDER[i]; });
+  }
+  // 画面上の並び（DOM の順）を APPS と保存データに反映する
+  function saveOrder(){
+    var ids = tabEls().map(function(b){ return b.id.slice(4); });
+    APPS.sort(function(a, b){ return ids.indexOf(a.id) - ids.indexOf(b.id); });
+    try { localStorage.setItem(ORDER_KEY, JSON.stringify(ids)); } catch(e) {}
+    updateReset();
+  }
+  updateReset();
+
+  // キーボード: ← → でタブ移動、Ctrl + Shift + ← → で選んでいるタブを左右に移動
+  nav.addEventListener('keydown', function(e){
+    if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
+    var i = APPS.findIndex(function(a){ return tabs[a.id] === document.activeElement; });
+    if (i < 0) return;
+    var left = e.key === 'ArrowLeft';
+    e.preventDefault();
+    if (e.ctrlKey && e.shiftKey) {
+      var el = tabs[APPS[i].id], els = tabEls(), k = els.indexOf(el);
+      if (left && k > 0) nav.insertBefore(el, els[k - 1]);
+      else if (!left && k < els.length - 1) nav.insertBefore(el, els[k + 1].nextSibling);
+      else return;
+      saveOrder(); el.focus();
+      return;
+    }
+    var n = APPS[(i + (left ? APPS.length - 1 : 1)) % APPS.length];
+    show(n.id); tabs[n.id].focus();
+  });
+
+  // ---- ドラッグ（マウスはそのまま、タッチは長押ししてから）でタブを並べ替える ----
+  var drag = null, suppressClick = false;
+  function startDrag(){
+    drag.active = true;
+    drag.el.classList.add('dragging');
+    nav.classList.add('reordering');
+    try { drag.el.setPointerCapture(drag.pointerId); } catch(e) {}
+  }
+  function slide(el, fromLeft){
+    // 入れ替わったタブを、元の位置からなめらかに移動させる
+    var dx = fromLeft - el.getBoundingClientRect().left;
+    if (!dx) return;
+    el.style.transition = 'none';
+    el.style.transform = 'translateX(' + dx + 'px)';
+    el.getBoundingClientRect();
+    el.style.transition = '';
+    el.style.transform = '';
+  }
+  function moveDrag(x){
+    var el = drag.el, navLeft = nav.getBoundingClientRect().left - nav.scrollLeft;
+    var left = x - drag.grab, mid = left + el.offsetWidth / 2;
+    var prev = el.previousElementSibling, next = el.nextElementSibling, from;
+    if (prev && prev.classList.contains('tab') && mid < navLeft + prev.offsetLeft + prev.offsetWidth / 2) {
+      from = prev.getBoundingClientRect().left; nav.insertBefore(el, prev); slide(prev, from);
+    } else if (next && next.classList.contains('tab') && mid > navLeft + next.offsetLeft + next.offsetWidth / 2) {
+      from = next.getBoundingClientRect().left; nav.insertBefore(next, el); slide(next, from);
+    }
+    el.style.transform = 'translateX(' + (left - (navLeft + el.offsetLeft)) + 'px)';
+  }
+  function endDrag(save){
+    if (!drag) return;
+    var d = drag; drag = null;
+    clearTimeout(d.timer);
+    if (!d.active) return;
+    d.el.classList.remove('dragging');
+    nav.classList.remove('reordering');
+    d.el.style.transform = '';
+    suppressClick = true;
+    setTimeout(function(){ suppressClick = false; }, 0);
+    if (save) saveOrder();
+  }
+  nav.addEventListener('pointerdown', function(e){
+    var el = e.target.closest && e.target.closest('button.tab');
+    if (!el || e.button !== 0 || drag) return;
+    drag = { el: el, pointerId: e.pointerId, x0: e.clientX, y0: e.clientY, active: false,
+             touch: e.pointerType !== 'mouse',
+             grab: e.clientX - el.getBoundingClientRect().left };
+    // タッチは横スクロールと区別するため、0.35秒長押ししてから並べ替え
+    if (drag.touch) drag.timer = setTimeout(function(){ if (drag && !drag.active) startDrag(); }, 350);
+  });
+  nav.addEventListener('pointermove', function(e){
+    if (!drag || e.pointerId !== drag.pointerId) return;
+    if (!drag.active) {
+      var far = Math.abs(e.clientX - drag.x0) > 6 || Math.abs(e.clientY - drag.y0) > 6;
+      if (!far) return;
+      if (drag.touch) { endDrag(false); return; } // 長押し前に動いた＝スクロール
+      startDrag();
+    }
+    moveDrag(e.clientX);
+  });
+  nav.addEventListener('pointerup', function(e){ if (drag && e.pointerId === drag.pointerId) endDrag(true); });
+  nav.addEventListener('pointercancel', function(e){ if (drag && e.pointerId === drag.pointerId) endDrag(true); });
+  // 並べ替え中はタッチでの画面スクロールを止める
+  nav.addEventListener('touchmove', function(e){ if (drag && drag.active) e.preventDefault(); }, { passive: false });
+  nav.addEventListener('contextmenu', function(e){ if (drag) e.preventDefault(); });
+  // ドラッグを離したときにタブが切り替わらないようにする
+  nav.addEventListener('click', function(e){ if (suppressClick) { e.stopPropagation(); e.preventDefault(); } }, true);
+
+  // 初めて開いたときだけ読み込み、以後は入力中の内容を保ったまま切り替える
+  function ensureFrame(app){
+    if (frames[app.id]) return frames[app.id];
+    var f = document.createElement('iframe');
+    f.id = 'frame-' + app.id;
+    f.title = app.label;
+    f.setAttribute('role','tabpanel');
+    f.setAttribute('aria-labelledby','tab-' + app.id);
+    f.hidden = true;
+    f.src = app.src;
+    box.appendChild(f);
+    frames[app.id] = f;
+    return f;
+  }
+
+  function show(id){
+    var app = APPS.find(function(a){ return a.id === id; }) || APPS[0];
+    ensureFrame(app);
+    APPS.forEach(function(a){
+      var on = a.id === app.id;
+      tabs[a.id].setAttribute('aria-selected', on ? 'true' : 'false');
+      tabs[a.id].tabIndex = on ? 0 : -1;
+      if (frames[a.id]) frames[a.id].hidden = !on;
+    });
+    document.title = app.label + ' - 業務アプリ';
+    try { localStorage.setItem(LAST_KEY, app.id); } catch(e) {}
+    if (location.hash !== '#' + app.id) history.replaceState(null, '', '#' + app.id);
+    try { frames[app.id].contentWindow.focus(); } catch(e) {}
+  }
+
+  // ---- タブの中のアプリに代わってフォルダを操作する（apps/vaccine/portal-fs-bridge.js から呼ばれる） ----
+  // パソコン内のファイルとして開くと、Chrome / Edge はタブの中からのフォルダ選択を禁止しているため。
+  function idb(cfg, mode, fn){
+    return new Promise(function(res, rej){
+      var r = indexedDB.open(cfg.db, 1);
+      r.onupgradeneeded = function(){ r.result.createObjectStore(cfg.store); };
+      r.onerror = function(){ rej(r.error); };
+      r.onsuccess = function(){
+        var db = r.result, t = db.transaction(cfg.store, mode), q = fn(t.objectStore(cfg.store));
+        t.oncomplete = function(){ db.close(); res(q && q.result); };
+        t.onerror = function(){ db.close(); rej(t.error); };
+      };
+    });
+  }
+  async function savedDir(cfg){
+    var h = await idb(cfg, 'readonly', function(s){ return s.get(cfg.key); });
+    if (!h || h.kind !== 'directory') { var e = new Error('保存先フォルダが設定されていません'); e.name = 'NotFoundError'; throw e; }
+    return h;
+  }
+  // フォルダ窓口を使ってよいアプリと、その保存場所（ワクチン接種管理と同じ値）
+  var FS_CFG = { vaccine: { db: 'vaccineKanri.fs', store: 'h', key: 'backupDir', pickerId: 'vaccineKanriBackup' } };
+  var FS_OPS = {
+    hello: function(){ return true; },
+    status: async function(a, cfg){ try { return { name: (await savedDir(cfg)).name }; } catch(e){ return null; } },
+    pick: async function(a, cfg){
+      var h = await window.showDirectoryPicker({ id: cfg.pickerId, mode: 'readwrite' });
+      await idb(cfg, 'readwrite', function(s){ return s.put(h, cfg.key); });
+      return { name: h.name };
+    },
+    perm: async function(a, cfg){
+      var h = await savedDir(cfg), o = { mode: 'readwrite' };
+      var st = await h.queryPermission(o);
+      if (st !== 'granted' && a.request) st = await h.requestPermission(o);
+      return st;
+    },
+    write: async function(a, cfg){
+      var fh = await (await savedDir(cfg)).getFileHandle(String(a.name), { create: true });
+      var w = await fh.createWritable(); await w.write(a.data); await w.close();
+      return true;
+    },
+    list: async function(a, cfg){
+      var out = [];
+      for await (var ent of (await savedDir(cfg)).entries()) {
+        var x = { name: ent[0], kind: ent[1].kind };
+        if (x.kind === 'file') { var f = await ent[1].getFile(); x.lastModified = f.lastModified; x.size = f.size; }
+        out.push(x);
+      }
+      return out;
+    },
+    read: async function(a, cfg){
+      return (await (await (await savedDir(cfg)).getFileHandle(String(a.name))).getFile()).text();
+    }
+  };
+  window.addEventListener('message', async function(e){
+    var d = e.data;
+    if (!d || d.portalFs !== 1 || !FS_OPS.hasOwnProperty(d.op)) return;
+    // 依頼元のタブを特定し、そのアプリ用に決めてある保存場所だけを使う（タブから送られた設定は使わない）
+    var appId = Object.keys(frames).find(function(k){ return frames[k].contentWindow === e.source; });
+    var cfg = appId && FS_CFG[appId];
+    if (!cfg) return;
+    var msg;
+    try { msg = { portalFs: 1, id: d.id, ok: true, v: await FS_OPS[d.op](d.args || {}, cfg) }; }
+    catch(err){ msg = { portalFs: 1, id: d.id, ok: false, v: { name: err && err.name, message: err && err.message } }; }
+    e.source.postMessage(msg, '*');
+  });
+
+  // ---- 患者マスタ一括取込（各アプリの apps/common/portal-import.js とやり取りする） ----
+  var bulk = document.getElementById('bulk'), bulkList = document.getElementById('bulk-list');
+  var bulkInput = document.getElementById('bulk-input'), bulkPick = document.getElementById('bulk-pick');
+  var bulkClose = document.getElementById('bulk-close'), bulkFile = document.getElementById('bulk-file');
+  var BULK_KEY = 'businessApp.portal.bulkImportOff';
+  var importSeq = 0, importWaits = {}, bulkRunning = false;
+
+  window.addEventListener('message', function(e){
+    var d = e.data;
+    if (!d || d.portalImport !== 1 || !importWaits[d.id]) return;
+    var w = importWaits[d.id];
+    if (frames[w.app] && frames[w.app].contentWindow !== e.source) return;
+    delete importWaits[d.id];
+    w.res(d);
+  });
+  function askFrame(appId, msg, timeout){
+    return new Promise(function(res){
+      var id = ++importSeq, f = frames[appId];
+      importWaits[id] = { app: appId, res: res };
+      msg.portalImport = 1; msg.id = id;
+      try { f.contentWindow.postMessage(msg, '*'); } catch(e) { delete importWaits[id]; res(null); return; }
+      setTimeout(function(){ if (importWaits[id]) { delete importWaits[id]; res(null); } }, timeout);
+    });
+  }
+  // アプリが読み込み終わって受け取れるようになるまで待つ
+  async function frameReady(appId){
+    for (var i = 0; i < 60; i++) {
+      var r = await askFrame(appId, { op: 'ping' }, 500);
+      if (r && r.ok) return true;
+    }
+    return false;
+  }
+  function offList(){ try { return JSON.parse(localStorage.getItem(BULK_KEY) || '[]'); } catch(e) { return []; } }
+  function renderBulk(){
+    var off = offList();
+    bulkList.innerHTML = '';
+    APPS.forEach(function(a){
+      var li = document.createElement('li');
+      li.innerHTML = '<label><input type="checkbox"></label><span class="res"></span>';
+      var cb = li.querySelector('input');
+      cb.value = a.id; cb.checked = off.indexOf(a.id) < 0;
+      cb.addEventListener('change', function(){
+        var ids = Array.prototype.filter.call(bulkList.querySelectorAll('input'), function(x){ return !x.checked; })
+          .map(function(x){ return x.value; });
+        try { localStorage.setItem(BULK_KEY, JSON.stringify(ids)); } catch(e) {}
+      });
+      li.querySelector('label').appendChild(document.createTextNode(a.label));
+      bulkList.appendChild(li);
+    });
+    bulkFile.textContent = '';
+  }
+  function setRes(appId, cls, msg){
+    var cb = bulkList.querySelector('input[value="' + appId + '"]');
+    var el = cb && cb.closest('li').querySelector('.res');
+    if (el) { el.className = 'res' + (cls ? ' ' + cls : ''); el.textContent = msg; }
+  }
+  importBtn.addEventListener('click', function(){
+    if (bulkRunning) { bulk.showModal(); return; }
+    renderBulk();
+    bulkPick.disabled = false;
+    bulk.showModal();
+  });
+  bulkClose.addEventListener('click', function(){ bulk.close(); });
+  bulk.addEventListener('cancel', function(e){ if (bulkRunning) e.preventDefault(); });
+  bulkPick.addEventListener('click', function(){ bulkInput.click(); });
+  bulkInput.addEventListener('change', async function(){
+    var file = bulkInput.files[0];
+    bulkInput.value = '';
+    if (!file) return;
+    var ids = Array.prototype.filter.call(bulkList.querySelectorAll('input'), function(x){ return x.checked; })
+      .map(function(x){ return x.value; });
+    if (!ids.length) { alert('取り込むアプリを選んでください。'); return; }
+    bulkRunning = true;
+    bulkPick.disabled = bulkClose.disabled = true;
+    bulkList.querySelectorAll('input').forEach(function(x){ x.disabled = true; });
+    bulkFile.textContent = 'ファイル: ' + file.name;
+    APPS.forEach(function(a){ setRes(a.id, '', ids.indexOf(a.id) < 0 ? '（取り込まない）' : '待機中…'); });
+    // まだ開いていないタブのアプリも裏で読み込んでおく
+    ids.forEach(function(id){ ensureFrame(APPS.find(function(a){ return a.id === id; })); });
+    for (var k = 0; k < ids.length; k++) {
+      var id = ids[k];
+      setRes(id, '', '取り込み中…');
+      var r = (await frameReady(id)) ? await askFrame(id, { op: 'run', file: file }, 60000) : null;
+      if (!r) setRes(id, 'ng', '✕ このアプリと連携できませんでした。タブを開いて、アプリの「患者マスタ取込」から取り込んでください。');
+      else setRes(id, r.ok ? 'ok' : 'ng', (r.ok ? '✓ ' : '✕ ') + (r.message || (r.ok ? '取り込みました' : '取り込めませんでした')));
+    }
+    bulkRunning = false;
+    bulkPick.disabled = bulkClose.disabled = false;
+    bulkList.querySelectorAll('input').forEach(function(x){ x.disabled = false; });
+    bulkPick.textContent = '別のファイルを取り込む';
+  });
+
+  // ---- 一括バックアップ・復元・削除 ----
+  // パソコン内のファイルとして開くと、5つのアプリと このページは同じ保存領域を使うので、ここから直接読み書きできる。
+  // 同じ PC の別のツールのデータを消さないよう、各アプリが使う名前のものだけを対象にする。
+  var DATA_APPS = {
+    'stock':      { ls: ['abx-stock-control-'],   idb: [] },
+    'order':      { ls: ['homeTransitionOrder.'], idb: ['homeTransitionOrder'] },  // IndexedDB は郵便番号データ
+    'visit-list': { ls: ['visitPatientList.'],    idb: [] },
+    'vaccine':    { ls: ['vaccineKanri.'],        idb: ['vaccineKanri.fs'] },      // IndexedDB は保存先フォルダの記録
+    'jisan':      { ls: ['jisan-yaku-'],          idb: ['jisan-yaku-db'] }
+  };
+  // バックアップに入れない IndexedDB（郵便番号データは公開データで読み込み直せる・フォルダの記録はファイルにできない）
+  var IDB_NO_BACKUP = ['homeTransitionOrder', 'vaccineKanri.fs'];
+  var BACKUP_FORMAT = 'business-app-backup';
+  var dataDlg = document.getElementById('data'), dataStatus = document.getElementById('data-status');
+  var dataBusy = false;
+
+  function lsKeys(appId){
+    var pre = DATA_APPS[appId].ls, out = [];
+    for (var i = 0; i < localStorage.length; i++) {
+      var k = localStorage.key(i);
+      if (pre.some(function(p){ return k.indexOf(p) === 0; })) out.push(k);
+    }
+    return out;
+  }
+  // どの処理も一定時間で打ち切り、画面が止まったままにならないようにする
+  var STEP_TIMEOUT = 15000;
+  function withTimeout(p, what, ms){
+    var t;
+    return Promise.race([p, new Promise(function(_, rej){
+      t = setTimeout(function(){ rej(new Error(what + 'が ' + Math.round((ms || STEP_TIMEOUT) / 1000) + ' 秒たっても終わりませんでした。')); }, ms || STEP_TIMEOUT);
+    })]).finally(function(){ clearTimeout(t); });
+  }
+  function reqP(r, what){
+    return withTimeout(new Promise(function(res, rej){
+      r.onsuccess = function(){ res(r.result); };
+      r.onerror = function(e){ if (e && e.preventDefault) e.preventDefault(); rej(r.error || new Error(what + 'に失敗しました')); };
+    }), what || 'データの読み書き');
+  }
+  // データベースがあるか調べる（無いときに空のものを作ってしまわないよう、作成は取り消す）
+  async function idbExists(name){
+    if (indexedDB.databases) {
+      try {
+        var list = await withTimeout(indexedDB.databases(), 'データベース一覧の取得', 3000);
+        return list.some(function(d){ return d.name === name; });
+      } catch(e) { /* 一覧が取れないブラウザ・状況では、開いて確かめる */ }
+    }
+    return withTimeout(new Promise(function(res, rej){
+      var created = false, r = indexedDB.open(name);
+      r.onupgradeneeded = function(){ created = true; r.transaction.abort(); };
+      r.onsuccess = function(){ r.result.close(); res(true); };
+      r.onerror = function(e){ if (e && e.preventDefault) e.preventDefault(); if (created) res(false); else rej(r.error); };
+      r.onblocked = function(){ rej(new Error('「' + name + '」がほかの画面で使用中です。')); };
+    }), '「' + name + '」の確認');
+  }
+  function openIdb(name){
+    return withTimeout(new Promise(function(res, rej){
+      var r = indexedDB.open(name);
+      r.onsuccess = function(){ var db = r.result; db.onversionchange = function(){ db.close(); }; res(db); };
+      r.onerror = function(e){ if (e && e.preventDefault) e.preventDefault(); rej(r.error); };
+      r.onblocked = function(){ rej(new Error('「' + name + '」がほかの画面で使用中です。ほかのタブ・ウィンドウでアプリを開いていたら閉じてください。')); };
+    }), '「' + name + '」を開く処理').catch(function(e){
+      throw new Error(e.message + '\n別の画面（または以前の操作）がこのデータを使ったまま残っています。ブラウザ（Edge / Chrome）のウィンドウを一度すべて閉じてから開き直し、もう一度お試しください。');
+    });
+  }
+  async function dumpIdb(name){
+    if (!(await idbExists(name))) return null;
+    var db = await openIdb(name);
+    try {
+      var out = { version: db.version, stores: {} };
+      for (var i = 0; i < db.objectStoreNames.length; i++) {
+        var sn = db.objectStoreNames[i], st = db.transaction(sn, 'readonly').objectStore(sn);
+        var meta = {
+          keyPath: st.keyPath, autoIncrement: st.autoIncrement,
+          indexes: Array.prototype.map.call(st.indexNames, function(n){ var x = st.index(n); return { name: n, keyPath: x.keyPath, unique: x.unique, multiEntry: x.multiEntry }; })
+        };
+        var keysReq = st.getAllKeys(), valsReq = st.getAll();   // 同じ読み取りの中で、キーと中身をそろえて取る
+        var keys = await reqP(keysReq, '「' + name + '」の読み込み');
+        var vals = await reqP(valsReq, '「' + name + '」の読み込み');
+        meta.records = keys.map(function(k, j){ return [k, vals[j]]; });
+        out.stores[sn] = meta;
+      }
+      return out;
+    } finally { db.close(); }
+  }
+  // データベースの中身を置き換える（dump が null なら空にする）。
+  // データベース自体は消さずに中身だけを入れ替えるので、アプリが開いたままでも待たされない。
+  async function replaceIdb(name, dump){
+    var exists = await idbExists(name);
+    if (!exists && !dump) return;
+    var db;
+    if (exists) {
+      db = await openIdb(name);
+      var fits = !dump || (db.version === dump.version && Object.keys(dump.stores).every(function(sn){
+        if (!db.objectStoreNames.contains(sn)) return false;
+        var st = db.transaction(sn, 'readonly').objectStore(sn);
+        return JSON.stringify(st.keyPath) === JSON.stringify(dump.stores[sn].keyPath);
+      }));
+      if (!fits) {
+        db.close();
+        throw new Error('「' + name + '」の形式がバックアップと違うため復元できません（アプリの版が違う可能性があります）。');
+      }
+    } else {
+      // まだ無いときは、バックアップと同じ形で作る
+      var r = indexedDB.open(name, dump.version);
+      r.onupgradeneeded = function(){
+        Object.keys(dump.stores).forEach(function(sn){
+          var d = dump.stores[sn], o = { autoIncrement: !!d.autoIncrement };
+          if (d.keyPath != null) o.keyPath = d.keyPath;
+          var st = r.result.createObjectStore(sn, o);
+          (d.indexes || []).forEach(function(x){ st.createIndex(x.name, x.keyPath, { unique: x.unique, multiEntry: x.multiEntry }); });
+        });
+      };
+      db = await reqP(r, '「' + name + '」の作成');
+    }
+    try {
+      var names = Array.prototype.slice.call(db.objectStoreNames);
+      if (!names.length) return;
+      // 全部の入れ物を1回の書き込みで処理する（途中で失敗したら全部元のまま）
+      var tx = db.transaction(names, 'readwrite');
+      names.forEach(function(sn){
+        var st = tx.objectStore(sn);
+        st.clear();
+        var d = dump && dump.stores[sn];
+        if (d) d.records.forEach(function(rec){ if (d.keyPath != null) st.put(rec[1]); else st.put(rec[1], rec[0]); });
+      });
+      await withTimeout(new Promise(function(res, rej){ tx.oncomplete = res; tx.onerror = tx.onabort = function(){ rej(tx.error || new Error('書き込みが取り消されました')); }; }), '「' + name + '」への書き込み');
+    } finally { db.close(); }
+  }
+
+  // ---- 暗号化（パスワード → PBKDF2 → AES-GCM） ----
+  var KDF_ITER = 310000;
+  function b64(buf){ var b = new Uint8Array(buf), s = ''; for (var i = 0; i < b.length; i += 0x8000) s += String.fromCharCode.apply(null, b.subarray(i, i + 0x8000)); return btoa(s); }
+  function unb64(s){ var t = atob(s), b = new Uint8Array(t.length); for (var i = 0; i < t.length; i++) b[i] = t.charCodeAt(i); return b; }
+  async function aesKey(pw, salt, iter){
+    var base = await crypto.subtle.importKey('raw', new TextEncoder().encode(pw), 'PBKDF2', false, ['deriveKey']);
+    return crypto.subtle.deriveKey({ name: 'PBKDF2', salt: salt, iterations: iter, hash: 'SHA-256' }, base, { name: 'AES-GCM', length: 256 }, false, ['encrypt', 'decrypt']);
+  }
+  async function encrypt(text, pw){
+    var salt = crypto.getRandomValues(new Uint8Array(16)), iv = crypto.getRandomValues(new Uint8Array(12));
+    var ct = await crypto.subtle.encrypt({ name: 'AES-GCM', iv: iv }, await aesKey(pw, salt, KDF_ITER), new TextEncoder().encode(text));
+    return { format: BACKUP_FORMAT, version: 1, encrypted: 'AES-GCM', kdf: 'PBKDF2-SHA256', iterations: KDF_ITER, salt: b64(salt), iv: b64(iv), data: b64(ct) };
+  }
+  async function decrypt(env, pw){
+    var key = await aesKey(pw, unb64(env.salt), env.iterations);
+    try { return new TextDecoder().decode(await crypto.subtle.decrypt({ name: 'AES-GCM', iv: unb64(env.iv) }, key, unb64(env.data))); }
+    catch(e) { throw new Error('パスワードが違うか、ファイルが壊れています。'); }
+  }
+
+  function setStatus(cls, msg){ dataStatus.className = 'status' + (cls ? ' ' + cls : ''); dataStatus.textContent = msg; }
+  function stamp(){ var d = new Date(), z = function(n){ return ('0' + n).slice(-2); }; return d.getFullYear() + z(d.getMonth() + 1) + z(d.getDate()) + '_' + z(d.getHours()) + z(d.getMinutes()); }
+  function readPw(){
+    var a = document.getElementById('data-pw').value, b = document.getElementById('data-pw2').value;
+    if (a !== b) throw new Error('パスワードと確認用のパスワードが一致しません。');
+    return a;
+  }
+  // バックアップしたことを各アプリにも記録する（ワクチン接種管理は、記録が無いと「未保存の変更あり」と警告するため）
+  var BACKUP_MARK = {
+    vaccine: { key: 'vaccineKanri.v1', apply: function(st, label){ st.lastBackup = label; st.dirty = false; } }
+  };
+  function backupLabel(d){
+    return d.toLocaleString('ja-JP', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' }) + '（一括）';
+  }
+  function markInJson(text, appId, label){
+    try { var st = JSON.parse(text); BACKUP_MARK[appId].apply(st, label); return JSON.stringify(st); } catch(e) { return text; }
+  }
+  async function markBackedUp(appIds, label){
+    for (var i = 0; i < appIds.length; i++) {
+      var id = appIds[i], m = BACKUP_MARK[id];
+      if (!m) continue;
+      if (frames[id]) {
+        // 開いているアプリには、アプリ自身に記録してもらう（画面の表示も更新される）
+        var r = (await frameReady(id)) ? await askFrame(id, { op: 'backedUp', label: label }, 5000) : null;
+        if (r && r.ok) continue;
+      }
+      var v = localStorage.getItem(m.key);
+      if (v != null) localStorage.setItem(m.key, markInJson(v, id, label));
+    }
+  }
+  function appLabel(id){ var a = APPS.find(function(x){ return x.id === id; }); return a ? a.label : id; }
+  async function makeBackup(appIds){
+    var pw = readPw();
+    if (pw && !(window.crypto && crypto.subtle)) throw new Error('このブラウザ・開き方では暗号化が使えません。パスワードを空にして保存するか、Microsoft Edge / Google Chrome で開いてください。');
+    var now = new Date(), label = backupLabel(now);
+    var data = { format: BACKUP_FORMAT, version: 1, createdAt: now.toISOString(), apps: appIds, localStorage: {}, indexedDB: {} };
+    for (var i = 0; i < appIds.length; i++) {
+      setStatus('', 'バックアップを作成しています…（' + appLabel(appIds[i]) + ' のデータを読み込み中）');
+      try {
+        lsKeys(appIds[i]).forEach(function(k){ data.localStorage[k] = localStorage.getItem(k); });
+        var dbs = DATA_APPS[appIds[i]].idb.filter(function(n){ return IDB_NO_BACKUP.indexOf(n) < 0; });
+        for (var j = 0; j < dbs.length; j++) { var d = await dumpIdb(dbs[j]); if (d) data.indexedDB[dbs[j]] = d; }
+      } catch(e) {
+        throw new Error(appLabel(appIds[i]) + ' のデータを読み込めませんでした。\n' + (e && e.message || e));
+      }
+    }
+    // バックアップの中のデータも「バックアップ済み」にしておく（復元したときに警告が出ないように）
+    Object.keys(BACKUP_MARK).forEach(function(id){
+      var k = BACKUP_MARK[id].key;
+      if (data.localStorage[k] != null) data.localStorage[k] = markInJson(data.localStorage[k], id, label);
+    });
+    setStatus('', 'バックアップを作成しています…（ファイルにまとめています）');
+    var text = JSON.stringify(data);
+    if (pw) {
+      setStatus('', 'バックアップを作成しています…（暗号化しています）');
+      try { text = JSON.stringify(await withTimeout(encrypt(text, pw), '暗号化', 60000)); }
+      catch(e) { throw new Error('暗号化できませんでした。\n' + (e && e.message || e)); }
+    }
+    setStatus('', 'バックアップを作成しています…（ファイルを保存しています）');
+    var name = '業務アプリ_一括バックアップ_' + stamp() + (pw ? '_暗号化' : '') + '.json';
+    var a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob([text], { type: 'application/json' }));
+    a.download = name;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(function(){ URL.revokeObjectURL(a.href); }, 60000);
+    try { await markBackedUp(appIds, label); } catch(e) { /* 記録できなくてもバックアップ自体は保存済み */ }
+    return { name: name, encrypted: !!pw, keys: Object.keys(data.localStorage).length, dbs: Object.keys(data.indexedDB).length };
+  }
+  // 復元・削除の前に、開いているアプリを閉じる（画面の中の古いデータで上書きされないように）
+  function closeAllFrames(){
+    Object.keys(frames).forEach(function(k){ frames[k].remove(); delete frames[k]; });
+  }
+  // 失敗したときは、閉じたアプリを開き直す
+  function reopenCurrent(){
+    var id = location.hash.slice(1);
+    show(APPS.some(function(a){ return a.id === id; }) ? id : APPS[0].id);
+  }
+  function checkedApps(){
+    return Array.prototype.filter.call(document.querySelectorAll('#data-apps input'), function(x){ return x.checked; }).map(function(x){ return x.value; });
+  }
+  function busy(on){
+    dataBusy = on;
+    // 「閉じる」はいつでも押せるようにしておく
+    dataDlg.querySelectorAll('button, input').forEach(function(x){ if (x.id !== 'data-close') x.disabled = on; });
+    if (!on) checkPw();
+  }
+
+  // パスワードの「表示／隠す」
+  dataDlg.querySelectorAll('button.eye').forEach(function(b){
+    b.addEventListener('click', function(){
+      var input = document.getElementById(b.dataset.for), show = input.type === 'password';
+      input.type = show ? 'text' : 'password';
+      b.textContent = show ? '隠す' : '表示';
+      b.setAttribute('aria-pressed', show ? 'true' : 'false');
+      b.title = show ? 'パスワードを隠します' : '入力したパスワードを表示します';
+      input.focus();
+    });
+  });
+  // 2回入力したパスワードが同じか、入力のたびに確かめる。違う間は保存できないようにする
+  var pw1 = document.getElementById('data-pw'), pw2 = document.getElementById('data-pw2'), pwMsg = document.getElementById('data-pwmsg');
+  var pw2Touched = false;
+  function checkPw(){
+    var a = pw1.value, b = pw2.value, bad = false, msg = '', cls = '';
+    if (!a && !b) { msg = ''; }
+    else if (a && !b) { msg = '確認のため、右の欄にも同じパスワードを入力してください。'; cls = 'hint'; bad = true; }
+    else if (a !== b) {
+      bad = true;
+      // 確認欄を入力し終わる前は、打ち間違いでなければ途中なので強く警告しない
+      var typing = !pw2Touched && a.indexOf(b) === 0;
+      msg = typing ? '確認のため、右の欄にも同じパスワードを入力してください。' : '⚠ 2つのパスワードが一致しません。もう一度確かめてください。';
+      cls = typing ? 'hint' : 'ng';
+    } else { msg = '✓ パスワードが一致しました。暗号化して保存します。'; cls = 'ok'; }
+    pwMsg.textContent = msg;
+    pwMsg.className = 'pwmsg' + (cls ? ' ' + cls : '');
+    pw2.setAttribute('aria-invalid', cls === 'ng' ? 'true' : 'false');
+    if (!dataBusy) document.getElementById('data-backup').disabled = bad;
+    return !bad;
+  }
+  pw1.addEventListener('input', checkPw);
+  pw2.addEventListener('input', checkPw);
+  pw2.addEventListener('blur', function(){ if (pw2.value) { pw2Touched = true; checkPw(); } });
+  pw1.addEventListener('blur', function(){ if (pw2.value) { pw2Touched = true; checkPw(); } });
+
+  dataBtn.addEventListener('click', function(){
+    var box = document.getElementById('data-apps');
+    box.innerHTML = '';
+    APPS.forEach(function(a){
+      if (!DATA_APPS[a.id]) return;
+      var l = document.createElement('label'), c = document.createElement('input');
+      c.type = 'checkbox'; c.value = a.id; c.checked = true;
+      l.appendChild(c); l.appendChild(document.createTextNode(a.label));
+      box.appendChild(l);
+    });
+    setStatus('', '');
+    pw2Touched = false;
+    checkPw();
+    dataDlg.showModal();
+  });
+  document.getElementById('data-close').addEventListener('click', function(){ dataDlg.close(); });
+  dataDlg.addEventListener('close', function(){ if (dataBusy) busy(false); });
+
+  document.getElementById('data-backup').addEventListener('click', async function(){
+    busy(true); setStatus('', 'バックアップを作成しています…');
+    try {
+      var r = await makeBackup(Object.keys(DATA_APPS));
+      setStatus('ok', '✓ バックアップを保存しました: ' + r.name + (r.encrypted ? '（暗号化）' : '（暗号化なし）') + '\nブラウザのダウンロード先に保存されます。');
+    } catch(e) { setStatus('ng', '✕ ' + (e && e.message || e)); }
+    finally { busy(false); }
+  });
+
+  var restoreInput = document.getElementById('data-restore-input');
+  document.getElementById('data-restore').addEventListener('click', function(){ restoreInput.click(); });
+  restoreInput.addEventListener('change', async function(){
+    var file = restoreInput.files[0];
+    restoreInput.value = '';
+    if (!file) return;
+    busy(true); setStatus('', '読み込んでいます…');
+    try {
+      var obj = JSON.parse(await file.text());
+      if (!obj || obj.format !== BACKUP_FORMAT) throw new Error('一括バックアップのファイルではありません。各アプリ個別のバックアップは、それぞれのアプリで復元してください。');
+      if (obj.encrypted) {
+        var pw = document.getElementById('data-rpw').value;
+        if (!pw) throw new Error('暗号化されたファイルです。「ファイルを選んで復元」の横にパスワードを入れてから、もう一度選んでください。');
+        if (!(window.crypto && crypto.subtle)) throw new Error('このブラウザ・開き方では暗号化したファイルを開けません。Microsoft Edge / Google Chrome で開いてください。');
+        setStatus('', 'パスワードを確認しています…');
+        obj = JSON.parse(await withTimeout(decrypt(obj, pw), '復号', 60000));
+      }
+      if (!obj.localStorage || !obj.indexedDB) throw new Error('バックアップファイルの中身が読み取れません。');
+      var ids = (obj.apps || []).filter(function(id){ return DATA_APPS[id]; });
+      var labels = ids.map(function(id){ return APPS.find(function(a){ return a.id === id; }).label; });
+      if (!confirm(new Date(obj.createdAt).toLocaleString('ja-JP') + ' のバックアップで、次のアプリのデータをすべて置き換えます。\n\n' + labels.join('\n') + '\n\nよろしいですか？')) { setStatus('', ''); busy(false); return; }
+      closeAllFrames();
+      // ① 先にデータベース（失敗する可能性がある方）を書き戻す。失敗したらほかのデータには触れない
+      for (var i = 0; i < ids.length; i++) {
+        var dbs = DATA_APPS[ids[i]].idb.filter(function(n){ return IDB_NO_BACKUP.indexOf(n) < 0; });
+        for (var j = 0; j < dbs.length; j++) {
+          setStatus('', '復元しています…（' + appLabel(ids[i]) + '）');
+          try { await replaceIdb(dbs[j], obj.indexedDB[dbs[j]] || null); }
+          catch(err) { throw new Error(appLabel(ids[i]) + ' のデータを復元できませんでした。ほかのアプリのデータは変更していません。\n' + (err && err.message || err)); }
+        }
+      }
+      // ② localStorage を置き換える
+      ids.forEach(function(id){ lsKeys(id).forEach(function(k){ localStorage.removeItem(k); }); });
+      Object.keys(obj.localStorage).forEach(function(k){
+        if (ids.some(function(id){ return DATA_APPS[id].ls.some(function(p){ return k.indexOf(p) === 0; }); })) localStorage.setItem(k, obj.localStorage[k]);
+      });
+      alert('復元しました。画面を読み込み直します。');
+      location.reload();
+    } catch(e) {
+      setStatus('ng', '✕ ' + (e && e.message || e));
+      busy(false);
+      reopenCurrent();
+    }
+  });
+
+  document.getElementById('data-delete').addEventListener('click', async function(){
+    var ids = checkedApps();
+    if (!ids.length) { setStatus('ng', '削除するアプリを選んでください。'); return; }
+    var labels = ids.map(function(id){ return APPS.find(function(a){ return a.id === id; }).label; });
+    var withBackup = document.getElementById('data-del-backup').checked;
+    if (withBackup && !checkPw()) { setStatus('ng', '✕ バックアップ用のパスワードを確認してください（2つの欄が一致していません）。'); pw2.focus(); return; }
+    busy(true);
+    try {
+      if (withBackup) {
+        setStatus('', 'バックアップを作成しています…');
+        var r = await makeBackup(ids);
+        setStatus('ok', '✓ バックアップを保存しました: ' + r.name + (r.encrypted ? '（暗号化）' : '（暗号化なし）'));
+        if (!confirm('バックアップファイル「' + r.name + '」が保存されたことを確認してください。\n（ブラウザのダウンロード一覧で確認できます）\n\n保存を確認できたら「OK」で削除に進みます。')) { busy(false); return; }
+      }
+      if (!confirm('このPCのブラウザから、次のアプリのデータをすべて削除します。元に戻せません。\n\n' + labels.join('\n') + '\n\n削除しますか？')) { busy(false); return; }
+      closeAllFrames();
+      var failed = [];
+      for (var i = 0; i < ids.length; i++) {
+        setStatus('', '削除しています…（' + appLabel(ids[i]) + '）');
+        lsKeys(ids[i]).forEach(function(k){ localStorage.removeItem(k); });
+        for (var j = 0; j < DATA_APPS[ids[i]].idb.length; j++) {
+          try { await replaceIdb(DATA_APPS[ids[i]].idb[j], null); }   // 中身を空にする
+          catch(err) { failed.push(appLabel(ids[i]) + ': ' + (err && err.message || err)); }
+        }
+      }
+      if (failed.length) {
+        setStatus('ng', '✕ 一部のデータを削除できませんでした。\n' + failed.join('\n'));
+        busy(false);
+        reopenCurrent();
+        return;
+      }
+      alert('削除しました。画面を読み込み直します。');
+      location.reload();
+    } catch(e) { setStatus('ng', '✕ ' + (e && e.message || e)); busy(false); reopenCurrent(); }
+  });
+
+  window.addEventListener('hashchange', function(){ show(location.hash.slice(1)); });
+
+  var first = location.hash.slice(1);
+  if (!first) { try { first = localStorage.getItem(LAST_KEY); } catch(e) {} }
+  show(first);
+})();
+</script>
+</body>
+</html>
