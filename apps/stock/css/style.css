@@ -114,6 +114,12 @@ table.list td, table.list th { overflow-wrap: anywhere; }
 .dot.red { background: var(--red-strong); }
 table.list th { background: #eef2f6; font-size: 13px; position: sticky; top: 0; }
 table.list td.num { text-align: right; }
+/* 見出しを押して並べ替え */
+table.list th[data-sort] { cursor: pointer; user-select: none; white-space: nowrap; }
+table.list th[data-sort]:hover { background: #dde5ee; }
+table.list th[data-sort]::after { content: ' ⇅'; color: #a0aab5; font-weight: normal; }
+table.list th.sort-asc::after { content: ' ▲'; color: var(--primary); }
+table.list th.sort-desc::after { content: ' ▼'; color: var(--primary); }
 table.list .ops { display: flex; flex-wrap: wrap; gap: 4px; min-width: 110px; }
 table.list td.empty { text-align: center; color: var(--muted); padding: 24px; }
 table.list input { width: 100%; min-width: 120px; }
@@ -189,8 +195,9 @@ body.memo-open #memo-overlay, body.waiting-open #waiting-overlay {
 .wl-table th { background: #eee; text-align: center; }
 .wl-table td.c { text-align: center; white-space: nowrap; }
 .wl-table th { white-space: nowrap; }
-.wl-table td.pn { white-space: nowrap; }
-.wl-table td.pn span { display: inline-block; font-size: 14px; }
+.wl-table td.fit { white-space: nowrap; overflow: hidden; }
+.wl-table td.c.fit, .wl-table th { padding-left: 4px; padding-right: 4px; }
+.wl-table td.fit span { display: inline-block; font-size: 14px; }
 .wl-table tr.over td { font-weight: bold; }
 .wl-empty { padding: 24px; text-align: center; }
 

@@ -168,12 +168,77 @@
   }
 
   // ---------- 在庫一覧 ----------
+  // 見出しを押したときの並べ替え（key が空なら元の並び）。dir: 1=昇順(▲) / -1=降順(▼)
+  const stockSort = { key: '', dir: 1 };
+
+  // 患者名の並べ替えには、患者マスタのふりがなを使う（無ければ氏名）
+  function patientSortKey(s) {
+    const p = (s.patientId && db.patients.find((x) => x.id === s.patientId)) ||
+      db.patients.find((x) => x.name === s.patientName);
+    return (p && p.kana) || s.patientName || '';
+  }
+
+  function stockSortValue(r, key) {
+    const { s, info, pending } = r;
+    switch (key) {
+      case 'status': return pending ? 0 : s.state !== '在庫' ? 5 : !info ? 4 : { red: 1, yellow: 2, green: 3 }[info.status];
+      case 'patient': return patientSortKey(s);
+      case 'drug': return s.drugName || '';
+      case 'qty': { const n = parseFloat(s.quantity); return isNaN(n) ? null : n; }
+      case 'prescribed': return s.prescribedDate || null;
+      case 'expiry': return info ? info.red.getTime() : null;
+      case 'yellow': return info ? info.yellow.getTime() : null;
+      case 'prescriber': return s.prescriber || '';
+    }
+    return null;
+  }
+
+  function compareBy(key, dir) {
+    return (a, b) => {
+      const x = stockSortValue(a, key), y = stockSortValue(b, key);
+      // 値の無いもの（期限が未入力など）は、どちらの向きでも最後にする
+      const ex = x == null || x === '', ey = y == null || y === '';
+      if (ex || ey) return ex === ey ? 0 : ex ? 1 : -1;
+      const c = typeof x === 'number' ? x - y : String(x).localeCompare(String(y), 'ja');
+      return c * dir;
+    };
+  }
+
+  function renderStockSortMarks() {
+    $$('#stock-table th[data-sort]').forEach((th) => {
+      const on = th.dataset.sort === stockSort.key;
+      th.classList.toggle('sort-asc', on && stockSort.dir === 1);
+      th.classList.toggle('sort-desc', on && stockSort.dir === -1);
+      th.setAttribute('aria-sort', on ? (stockSort.dir === 1 ? 'ascending' : 'descending') : 'none');
+    });
+  }
+
+  $('#stock-table thead').addEventListener('click', (e) => {
+    const th = e.target.closest('th[data-sort]');
+    if (!th) return;
+    const key = th.dataset.sort;
+    // 1回目 ▲ → 2回目 ▼ → 3回目 元の並び
+    if (stockSort.key !== key) { stockSort.key = key; stockSort.dir = 1; }
+    else if (stockSort.dir === 1) stockSort.dir = -1;
+    else stockSort.key = '';
+    renderStock();
+  });
+
   function renderStock() {
     const q = $('#stock-search').value.trim();
     const cat = $('#stock-filter-category').value;
     const st = $('#stock-filter-status').value;
     const showClosed = $('#stock-show-closed').checked;
     const order = { red: 0, yellow: 1, green: 2 };
+
+    // 元の並び: メモ未発行 → お守り薬 → 赤 → 黄 → 期限内 → 患者名 → 処方日
+    const standard = (a, b) =>
+      (b.pending ? 1 : 0) - (a.pending ? 1 : 0) ||
+      (a.s.state === '在庫' ? 0 : 1) - (b.s.state === '在庫' ? 0 : 1) ||
+      (order[a.info && a.info.status] ?? 3) - (order[b.info && b.info.status] ?? 3) ||
+      a.s.patientName.localeCompare(b.s.patientName, 'ja') ||
+      a.s.prescribedDate.localeCompare(b.s.prescribedDate);
+    const byColumn = stockSort.key ? compareBy(stockSort.key, stockSort.dir) : null;
 
     const rows = db.stocks
       .map((s) => ({ s: s, info: stockStatus(s), pending: pendingUsage(s) }))
@@ -184,13 +249,8 @@
         if (q && !(s.patientName + ' ' + s.drugName + ' ' + (s.patientId || '')).includes(q)) return false;
         return true;
       })
-      .sort((a, b) =>
-        (b.pending ? 1 : 0) - (a.pending ? 1 : 0) ||
-        (a.s.state === '在庫' ? 0 : 1) - (b.s.state === '在庫' ? 0 : 1) ||
-        (order[a.info && a.info.status] ?? 3) - (order[b.info && b.info.status] ?? 3) ||
-        a.s.patientName.localeCompare(b.s.patientName, 'ja') ||
-        a.s.prescribedDate.localeCompare(b.s.prescribedDate)
-      );
+      .sort((a, b) => (byColumn && byColumn(a, b)) || standard(a, b));
+    renderStockSortMarks();
 
     const active = db.stocks.filter((s) => s.state === '在庫').map(stockStatus).filter(Boolean);
     const pendingCount = db.stocks.filter((s) => pendingUsage(s)).length;
@@ -736,29 +796,31 @@
         const days = L.waitingDays(u, now);
         const unissued = L.memoState(u) === 'unissued';
         return '<tr' + (!unissued && days != null && days >= 7 ? ' class="over"' : '') + '>' +
-          '<td class="pn"><span>' + esc(u.patientName) + '</span></td>' +
+          '<td class="fit"><span>' + esc(u.patientName) + '</span></td>' +
           '<td>' + esc(u.drugName) + '</td>' +
-          '<td class="c">' + fmtISO(u.startDate) + '</td>' +
-          '<td class="c">' + (unissued ? '（メモ未発行）' : fmtISO(String(u.memoIssuedAt).slice(0, 10))) + '</td>' +
-          '<td class="c">' + (unissued || days == null ? '' : days + '日') + '</td></tr>';
+          '<td class="c fit"><span>' + fmtISO(u.startDate) + '</span></td>' +
+          '<td class="c fit"><span>' + (unissued ? '（未発行）' : fmtISO(String(u.memoIssuedAt).slice(0, 10))) + '</span></td>' +
+          '<td class="c fit"><span>' + (unissued || days == null ? '' : days + '日') + '</span></td></tr>';
       }).join('');
       return '<div class="wl">' +
         '<div class="wl-date">作成日 ' + L.formatDate(now) + '</div>' +
         '<h2 class="memo-title">' + esc(db.settings.memoTitle) + '　指示未記載一覧</h2>' +
         '<div class="wl-doc">' + esc(g.name) + '　（' + g.items.length + '件）</div>' +
-        '<table class="wl-table"><colgroup><col style="width:36%"><col style="width:26%"><col style="width:15%"><col style="width:15%"><col style="width:8%"></colgroup>' +
+        // 日付・経過の列は日付が収まる幅に固定し、残りを患者名と薬剤名で分ける
+        '<table class="wl-table"><colgroup><col style="width:24%"><col><col style="width:8.2em"><col style="width:8.2em"><col style="width:4.4em"></colgroup>' +
         '<thead><tr><th>患者名</th><th>薬剤名</th><th>使用開始日</th><th>メモ発行日</th><th>経過</th></tr></thead>' +
         '<tbody>' + rows + '</tbody></table></div>';
     }).join('') || '<div class="wl"><div class="wl-empty">処方メモに指示が未記載の使用記録はありません。</div></div>';
-    fitPatientNames();
+    fitCells();
   }
 
-  // 患者名が長くて列に収まらないときは、2段に折り返さず文字を小さくして1行に収める
-  // （画面の表示は印刷より狭いので、画面で収まれば印刷でも収まる）
-  function fitPatientNames() {
-    $$('#waiting-sheet td.pn').forEach((td) => {
+  // 患者名・日付・経過が列に収まらないときは、2段に折り返さず文字を小さくして1行に収める
+  // （使うPCの文字の形で幅が変わるため、実際の表示で測る。画面の表示は印刷より狭いので、画面で収まれば印刷でも収まる）
+  function fitCells() {
+    $$('#waiting-sheet td.fit').forEach((td) => {
       const span = td.firstElementChild;
-      const avail = td.clientWidth - 16;
+      const cs = getComputedStyle(td);
+      const avail = td.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight);
       if (!span || avail <= 0) return;
       let size = 14;
       span.style.fontSize = size + 'px';
