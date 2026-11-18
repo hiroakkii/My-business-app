@@ -215,6 +215,49 @@ dialog::backdrop { background: rgba(20, 30, 40, .45); }
 .route-pin.office span { background: #2e7d32; border-radius: 6px; }
 .popup-addr, .popup-hit { color: var(--muted); font-size: 12px; }
 
+/* 時間メモ */
+.memo-input { display: block; width: 100%; max-width: 16em; margin-top: 3px; padding: 2px 6px !important; font-size: 12px !important; }
+.memo-input.has-memo { border-color: #d9822b; background: #fff7ec; font-weight: 600; }
+.route-memo { color: #b45309; font-weight: 600; font-size: 12px; }
+.popup-memo { color: #b45309; font-weight: 600; }
+.route-pin.has-memo span { box-shadow: 0 0 0 3px #d9480f, 0 1px 4px rgba(0, 0, 0, .4); }
+
+/* 地図の印刷（A4 横・余白 10mm → 印刷範囲 277mm × 190mm） */
+.map-print { display: none; }
+body.printing-map .map-print {
+  display: block;
+  position: fixed; left: -10000px; top: 0; /* 画面では見えない位置で地図を読み込む */
+  width: 277mm; background: #fff; color: #000;
+}
+.map-print .print-head { display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 3mm; }
+.map-print .print-head h1 { font-size: 15pt; }
+#map-print-meta { font-size: 10.5pt; }
+.map-print-body { display: flex; gap: 4mm; align-items: flex-start; }
+#map-print-map { flex: none; width: 170mm; height: 172mm; border: 1px solid #000; background: #fff; }
+#map-print-map .leaflet-control-attribution { font-size: 8pt; background: rgba(255, 255, 255, .85); }
+.map-print-list { flex: 1; min-width: 0; border-collapse: collapse; table-layout: fixed; font-size: 9.5pt; }
+.map-print-list col.c-no { width: 10mm; }
+.map-print-list col.c-memo { width: 33mm; }
+.map-print-list th, .map-print-list td { border: 1px solid #000; padding: 1.2mm 1.5mm; text-align: left; vertical-align: middle; word-break: break-all; }
+.map-print-list th { background: #e6e6e6; font-size: 9pt; }
+.map-print-list td.no { text-align: center; padding: 1mm 0; }
+.map-print-list td.memo { font-weight: 700; }
+.map-print-list tr.has-memo td.memo, .map-print-list tr.has-memo td.name { background: #fff1dc; }
+.map-print-list tr.gh-head td { background: #f3ecdf; }
+.map-print-list td.gh-member { padding-left: 4mm; }
+.map-print-list tr.sep td { background: #eee; font-weight: 700; font-size: 9pt; }
+.map-print-list tr { break-inside: avoid; page-break-inside: avoid; }
+.mp-addr { font-size: 8pt; color: #333; }
+.mp-pin {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 7mm; height: 7mm; border-radius: 50%;
+  background: var(--accent); color: #fff; font-weight: 700; font-size: 10pt;
+}
+.mp-pin.gh { background: #c77700; }
+.mp-pin.office { background: #2e7d32; border-radius: 1.5mm; font-size: 9pt; }
+.mp-pin.has-memo { box-shadow: 0 0 0 0.7mm #d9480f; }
+.map-print, .map-print * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+
 /* 印刷 */
 .print-only { display: none; }
 
@@ -239,4 +282,7 @@ dialog::backdrop { background: rgba(20, 30, 40, .45); }
   .print-table td.num { text-align: right; }
   .print-table tr { page-break-inside: avoid; break-inside: avoid; }
   .print-table thead { display: table-header-group; }
+  body.printing-map #print-area { display: none; }
+  body.printing-map .map-print { position: static; }
+  .map-print-list thead { display: table-header-group; }
 }

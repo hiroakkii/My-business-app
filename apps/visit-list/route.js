@@ -132,6 +132,36 @@
     return [...stops.values()].map((s) => Object.assign(s, { point: pointOf(s.addr) }));
   }
 
+  function memoOf(p) {
+    return window.VisitApp.memoOf(p.key);
+  }
+
+  function stopHasMemo(s) {
+    return s.patients.some((p) => memoOf(p));
+  }
+
+  // 番号を付ける順番（位置のわかる訪問先のみ）。
+  // 計算した順番を当日リストに反映済み（訪問ルート順）なら、↑↓で手直しした当日リストの順に従う。
+  // 計算前・当日リストが変わった後は null
+  function orderedStops(stops, route) {
+    if (!route || route.stale) return null;
+    if (window.VisitApp.isRouteOrder()) return stops.filter((s) => s.point);
+    return route.stops;
+  }
+
+  // 並び順に沿った直線距離の合計（km）
+  function pathKm(ordered) {
+    const pts = ordered.map((s) => s.point);
+    const office = pointOf(geo.officeAddress);
+    if (office && pts.length) {
+      pts.unshift(office);
+      if (geo.roundTrip) pts.push(office);
+    }
+    let km = 0;
+    for (let i = 0; i < pts.length - 1; i++) km += distKm(pts[i], pts[i + 1]);
+    return km;
+  }
+
   function stopLabel(s) {
     if (s.gh) return `${s.gh}（${s.patients.length}名）`;
     return s.patients.map((p) => p.name || p.id).join('、');
@@ -354,29 +384,38 @@
     });
   }
 
-  function renderMap(stops, route) {
+  function pinClass(s) {
+    return [s.gh ? 'gh' : '', stopHasMemo(s) ? 'has-memo' : ''].filter(Boolean).join(' ');
+  }
+
+  function routeLine(ordered) {
+    const office = pointOf(geo.officeAddress);
+    const line = ordered.map((s) => [s.point.lat, s.point.lng]);
+    if (office && line.length) {
+      line.unshift([office.lat, office.lng]);
+      if (geo.roundTrip) line.push([office.lat, office.lng]);
+    }
+    return line;
+  }
+
+  function renderMap(stops, ordered) {
     ensureMap();
     if (!map) return;
     markerLayer.clearLayers();
     const office = pointOf(geo.officeAddress);
     if (office) addMarker(geo.officeAddress, [office.lat, office.lng], pinIcon('事', 'office'), `<b>事業所（出発地）</b><br>${esc(geo.officeAddress)}`);
     const numberOf = new Map();
-    if (route && !route.stale) route.stops.forEach((s, i) => numberOf.set(s.id, i + 1));
+    if (ordered) ordered.forEach((s, i) => numberOf.set(s.id, i + 1));
     stops.forEach((s) => {
       if (!s.point) return;
       const no = numberOf.get(s.id);
-      const names = s.patients.map((p) => esc(p.name || p.id)).join('<br>');
+      const names = s.patients.map((p) => esc(p.name || p.id) + (memoOf(p) ? ` <span class="popup-memo">［${esc(memoOf(p))}］</span>` : '')).join('<br>');
       const popup = `<b>${no ? `${no}. ` : ''}${esc(s.gh || '居宅')}</b><br>${names}<br><span class="popup-addr">${esc(s.addr)}</span>`
         + `<br><span class="popup-hit">検索結果: ${esc(s.point.title)}</span>`;
-      addMarker(s.addr, [s.point.lat, s.point.lng], pinIcon(no || '・', s.gh ? 'gh' : ''), popup);
+      addMarker(s.addr, [s.point.lat, s.point.lng], pinIcon(no || '・', pinClass(s)), popup);
     });
-    if (route && !route.stale && route.stops.length) {
-      const line = route.stops.map((s) => [s.point.lat, s.point.lng]);
-      if (office) {
-        line.unshift([office.lat, office.lng]);
-        if (geo.roundTrip) line.push([office.lat, office.lng]);
-      }
-      L.polyline(line, { color: '#1f6feb', weight: 3, opacity: 0.7, dashArray: '6 6' }).addTo(markerLayer);
+    if (ordered && ordered.length) {
+      L.polyline(routeLine(ordered), { color: '#1f6feb', weight: 3, opacity: 0.7, dashArray: '6 6' }).addTo(markerLayer);
     }
   }
 
@@ -402,41 +441,139 @@
     $('#btn-geocode').disabled = busy || !hasToday;
     $('#btn-optimize').disabled = busy || !stops.some((s) => s.point);
     $('#btn-apply-route').disabled = busy || !route || route.stale;
+    $('#btn-print-map').disabled = busy || !stops.some((s) => s.point);
   }
 
   function render() {
     if (!window.VisitApp) return;
     const stops = buildStops();
     const route = currentRoute(stops);
+    const ordered = orderedStops(stops, route);
     renderButtons(stops, route);
-    renderMap(stops, route);
+    renderMap(stops, ordered);
 
     const list = [];
     const office = pointOf(geo.officeAddress);
     if (geo.officeAddress) {
       list.push(`<li class="office">${office ? '' : '<span class="tag">位置未設定</span>'}事業所（出発）${office ? '' : ` <button type="button" class="btn small" data-pick="${esc(geo.officeAddress)}">地図で指定</button>`}</li>`);
     }
-    const ordered = route && !route.stale ? route.stops : stops;
-    const unordered = route && !route.stale ? stops.filter((s) => !route.stops.includes(s)) : [];
-    ordered.concat(unordered).forEach((s) => {
-      const no = route && !route.stale && route.stops.includes(s) ? `${route.stops.indexOf(s) + 1}.` : '';
+    const numbered = ordered || [];
+    const unordered = stops.filter((s) => !numbered.includes(s));
+    numbered.concat(unordered).forEach((s) => {
+      const no = numbered.includes(s) ? `${numbered.indexOf(s) + 1}.` : '';
       const tag = s.point ? '' : '<span class="tag">位置未設定</span>';
       const pick = s.point ? '' : ` <button type="button" class="btn small" data-pick="${esc(s.addr)}"${s.addr ? '' : ' disabled'}>地図で指定</button>`;
-      list.push(`<li class="${s.gh ? 'gh' : ''}"><b>${no}</b> ${tag}${esc(stopLabel(s))}${pick}<div class="route-addr">${esc(s.addr || '（住所なし）')}</div></li>`);
+      const memos = s.patients.filter((p) => memoOf(p))
+        .map((p) => `<div class="route-memo">${s.patients.length > 1 ? `${esc(p.name || p.id)}: ` : ''}${esc(memoOf(p))}</div>`).join('');
+      list.push(`<li class="${s.gh ? 'gh' : ''}"><b>${no}</b> ${tag}${esc(stopLabel(s))}${pick}${memos}<div class="route-addr">${esc(s.addr || '（住所なし）')}</div></li>`);
     });
     if (geo.officeAddress && geo.roundTrip && route && !route.stale) list.push('<li class="office">事業所（帰着）</li>');
     $('#route-list').innerHTML = list.join('') || '<li class="empty">当日リストに患者を追加すると表示されます</li>';
 
-    const summary = route && !route.stale
-      ? `直線距離 合計 約${route.km.toFixed(1)}km（実際の道のりはこれより長くなります）`
+    const summary = ordered
+      ? `直線距離 合計 約${pathKm(ordered).toFixed(1)}km（実際の道のりはこれより長くなります）`
       : route && route.stale ? '当日リストまたは位置が変わりました。「訪問順を計算」をもう一度押してください。' : '';
     $('#route-summary').textContent = summary;
 
-    const links = route && !route.stale ? gmapsLinks(route.stops) : [];
+    const links = ordered ? gmapsLinks(ordered) : [];
     $('#gmaps-links').innerHTML = links.length
       ? links.map((u, i) => `<a class="btn" href="${esc(u)}" target="_blank" rel="noopener noreferrer">Googleマップで経路を開く${links.length > 1 ? `（${i + 1}/${links.length}）` : ''}</a>`).join('')
         + '<p class="hint">Googleマップには住所（地図で指定した地点は座標）だけを渡します。</p>'
       : '';
+  }
+
+  // ---------- 地図の印刷（A4 横：左に地図、右に番号と患者・時間メモの一覧） ----------
+  const PRINT_TILE_WAIT_MS = 15000;
+  let printMap = null;
+
+  function printRows(numbered, unlocated) {
+    const rows = [];
+    const office = pointOf(geo.officeAddress);
+    if (office) rows.push(`<tr class="office"><td class="no"><span class="mp-pin office">事</span></td><td colspan="2"><b>事業所（出発${geo.roundTrip ? '・帰着' : ''}）</b><div class="mp-addr">${esc(geo.officeAddress)}</div></td></tr>`);
+    const stopRows = (s, no) => {
+      const noCell = (span) => `<td class="no"${span > 1 ? ` rowspan="${span}"` : ''}>${no ? `<span class="mp-pin ${pinClass(s)}">${no}</span>` : '－'}</td>`;
+      const memoCell = (p) => `<td class="memo">${esc(memoOf(p))}</td>`;
+      const rowCls = (p) => (memoOf(p) ? ' class="has-memo"' : '');
+      if (s.gh) {
+        rows.push(`<tr class="gh-head">${noCell(s.patients.length + 1)}<td colspan="2"><b>${esc(s.gh)}</b>（${s.patients.length}名）<div class="mp-addr">${esc(s.addr || '（住所なし）')}</div></td></tr>`);
+        s.patients.forEach((p) => rows.push(`<tr${rowCls(p)}><td class="name gh-member">${esc(p.name || p.id)}</td>${memoCell(p)}</tr>`));
+        return;
+      }
+      s.patients.forEach((p, i) => {
+        rows.push(`<tr${rowCls(p)}>${i === 0 ? noCell(s.patients.length) : ''}<td class="name"><b>${esc(p.name || p.id)}</b><div class="mp-addr">${esc(p.address || s.addr || '（住所なし）')}</div></td>${memoCell(p)}</tr>`);
+      });
+    };
+    numbered.forEach((s, i) => stopRows(s, i + 1));
+    if (unlocated.length) {
+      rows.push('<tr class="sep"><td colspan="3">地図に位置が無い訪問先</td></tr>');
+      unlocated.forEach((s) => stopRows(s, null));
+    }
+    return rows.join('');
+  }
+
+  function finishPrintMap() {
+    document.body.classList.remove('printing-map');
+    if (printMap) { printMap.remove(); printMap = null; }
+  }
+
+  async function startPrintMap() {
+    if (busy) return;
+    const stops = buildStops();
+    const located = stops.filter((s) => s.point);
+    if (!located.length) {
+      setStatus('地図に表示できる訪問先がありません。先に「① 住所から位置を取得」を押してください。', true);
+      return;
+    }
+    const route = currentRoute(stops);
+    const ordered = orderedStops(stops, route);
+    const numbered = ordered || located; // 未計算なら当日リストの順に番号を付ける
+    const unlocated = stops.filter((s) => !numbered.includes(s));
+    const people = stops.reduce((n, s) => n + s.patients.length, 0);
+
+    $('#map-print-h1').textContent = '訪問ルート';
+    $('#map-print-meta').textContent = `訪問日: ${window.VisitApp.visitDateText()}　${stops.length}か所・${people}名`
+      + (ordered ? `　直線距離 約${pathKm(ordered).toFixed(1)}km` : '　（番号は当日リストの順）');
+    $('#map-print-rows').innerHTML = printRows(numbered, unlocated);
+    $('#page-style').textContent = '@page { size: A4 landscape; margin: 10mm; }';
+
+    busy = true;
+    renderButtons();
+    setStatus('印刷用の地図を準備しています…');
+    finishPrintMap();
+    document.body.classList.add('printing-map');
+    printMap = L.map('map-print-map', {
+      zoomControl: false, zoomSnap: 0.25, fadeAnimation: false, zoomAnimation: false, markerZoomAnimation: false,
+      inertia: false, dragging: false, scrollWheelZoom: false, doubleClickZoom: false, boxZoom: false, keyboard: false,
+    });
+    const tiles = L.tileLayer(TILE_URL, { attribution: '出典：地理院タイル', maxZoom: 18 });
+    let tileErrors = 0;
+    tiles.on('tileerror', () => { tileErrors += 1; });
+    const tilesLoaded = new Promise((resolve) => tiles.once('load', () => resolve(true)));
+    tiles.addTo(printMap);
+    const layer = L.layerGroup().addTo(printMap);
+    const pts = [];
+    const office = pointOf(geo.officeAddress);
+    if (office) {
+      L.marker([office.lat, office.lng], { icon: pinIcon('事', 'office'), interactive: false }).addTo(layer);
+      pts.push([office.lat, office.lng]);
+    }
+    if (ordered && ordered.length) {
+      L.polyline(routeLine(ordered), { color: '#1f6feb', weight: 3, opacity: 0.85, dashArray: '7 5', interactive: false }).addTo(layer);
+    }
+    numbered.forEach((s, i) => {
+      L.marker([s.point.lat, s.point.lng], { icon: pinIcon(i + 1, pinClass(s)), interactive: false, zIndexOffset: 1000 - i }).addTo(layer);
+      pts.push([s.point.lat, s.point.lng]);
+    });
+    if (pts.length === 1) printMap.setView(pts[0], 16);
+    else printMap.fitBounds(L.latLngBounds(pts), { padding: [28, 28], maxZoom: 17 });
+
+    const ok = (await Promise.race([tilesLoaded, sleep(PRINT_TILE_WAIT_MS).then(() => false)])) && tileErrors === 0;
+    busy = false;
+    renderButtons();
+    setStatus(ok ? '' : '地図の画像の一部または全部を読み込めませんでした（インターネット接続を確認してください）。読み込めた分だけで印刷します。', !ok);
+    // 印刷が終わったら（キャンセルでも）印刷用の地図を片付ける
+    window.addEventListener('afterprint', finishPrintMap, { once: true });
+    window.print();
   }
 
   function clearStorage() {
@@ -466,6 +603,7 @@
     $('#btn-optimize').addEventListener('click', () => { computeRoute(); fitAll(); });
     $('#btn-apply-route').addEventListener('click', applyRoute);
     $('#btn-fit').addEventListener('click', fitAll);
+    $('#btn-print-map').addEventListener('click', startPrintMap);
     $('#route-list').addEventListener('click', (e) => {
       const b = e.target.closest('button[data-pick]');
       if (!b) return;

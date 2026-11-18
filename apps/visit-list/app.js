@@ -97,6 +97,7 @@
     importMeta: null,
     today: [],
     todaySort: null, // { key, dir: 1 | -1 }
+    memos: {}, // 患者キー → 時間メモ（訪問時間の制限など。マスタを取り込み直しても残す）
     settings: { version: 2, visitDate: '', title: '訪問予定患者一覧', birthFormat: 'ad', paper: 'landscape', ghPosition: 'last', listOrder: 'group' },
   };
   let byKey = new Map();
@@ -252,6 +253,7 @@
         importMeta: state.importMeta,
         today: state.today,
         todaySort: state.todaySort,
+        memos: state.memos,
         settings: state.settings,
       }));
     } catch (e) {
@@ -267,6 +269,7 @@
       state.importMeta = data.importMeta || null;
       state.today = Array.isArray(data.today) ? data.today : [];
       state.todaySort = data.todaySort || null;
+      state.memos = data.memos && typeof data.memos === 'object' ? data.memos : {};
       const saved = data.settings || {};
       // 旧版の初期値（A4縦）で保存されている場合は A4横 にする
       if (!saved.version) { delete saved.paper; saved.version = 2; }
@@ -517,7 +520,7 @@
         <td>${esc(p.gh)}</td>
       </tr>`;
     }).join('');
-    $('#preview-table tbody').innerHTML = html || '<tr><td colspan="9" class="empty">取込対象の行がありません</td></tr>';
+    $('#preview-table tbody').innerHTML = html || '<tr><td colspan="8" class="empty">取込対象の行がありません</td></tr>';
   }
 
   function renderWarnings(patients) {
@@ -608,7 +611,7 @@
     const tbody = $('#search-table tbody');
     if (!has) {
       $('#search-info').textContent = 'Excelの患者マスタを取り込むと検索できます。';
-      tbody.innerHTML = '<tr><td colspan="9" class="empty">患者マスタが取り込まれていません</td></tr>';
+      tbody.innerHTML = '<tr><td colspan="8" class="empty">患者マスタが取り込まれていません</td></tr>';
       return;
     }
     const results = searchPatients();
@@ -626,7 +629,7 @@
         <td class="addr">${esc(p.address)}</td>
         <td class="gh">${esc(p.gh)}</td>
       </tr>`;
-    }).join('') || '<tr><td colspan="9" class="empty">該当する患者がいません</td></tr>';
+    }).join('') || '<tr><td colspan="8" class="empty">該当する患者がいません</td></tr>';
   }
 
   function onSearchTableClick(e) {
@@ -739,7 +742,8 @@
         html.push(`<tr data-key="${esc(k)}">
           <td>${esc(p.id)}</td><td>${esc(p.kana)}</td><td>${esc(p.name)}</td><td>${esc(p.sex)}</td>
           <td>${esc(formatBirth(p, fmt))}</td><td class="num">${esc(age != null ? age : '')}</td>
-          <td class="addr">${esc(p.address)}</td>
+          <td class="addr">${esc(p.address)}
+            <input type="text" class="memo-input${memoOf(k) ? ' has-memo' : ''}" data-memo="${esc(k)}" value="${esc(memoOf(k))}" placeholder="時間メモ（例: 10時〜12時）" maxlength="60" title="訪問時間の制限など。地図の印刷に載ります"></td>
           <td class="col-ops"><div class="ops">
             <button type="button" class="btn small" data-op="up" ${i === 0 ? 'disabled' : ''} title="上へ">↑</button>
             <button type="button" class="btn small" data-op="down" ${i === last ? 'disabled' : ''} title="下へ">↓</button>
@@ -752,6 +756,22 @@
     $('#btn-print').disabled = state.today.length === 0;
     $('#gh-position').disabled = state.settings.listOrder === 'route';
     if (window.VisitRoute) window.VisitRoute.refresh();
+  }
+
+  function memoOf(key) {
+    return state.memos[key] || '';
+  }
+
+  // 時間メモの入力（入力のたびに保存。入力を終えたら地図の一覧にも反映）
+  function onMemoInput(e) {
+    const el = e.target.closest('input[data-memo]');
+    if (!el) return;
+    const v = el.value.trim();
+    if (v) state.memos[el.dataset.memo] = v;
+    else delete state.memos[el.dataset.memo];
+    el.classList.toggle('has-memo', !!v);
+    save();
+    if (e.type === 'change' && window.VisitRoute) window.VisitRoute.refresh();
   }
 
   function onTodayTableClick(e) {
@@ -881,13 +901,14 @@
       if (lastWorkbook) openImportDialog(lastWorkbook.wb, lastWorkbook.fileName, state.importMeta && state.importMeta.fileName === lastWorkbook.fileName ? state.importMeta : null);
     });
     $('#btn-clear-all').addEventListener('click', () => {
-      if (!confirm('このブラウザに保存されている患者マスタと当日リストを消去します。よろしいですか？')) return;
+      if (!confirm('このブラウザに保存されている患者マスタ・当日リスト・時間メモを消去します。よろしいですか？')) return;
       localStorage.removeItem(STORAGE_KEY);
       if (window.VisitRoute) window.VisitRoute.clearStorage();
       state.patients = [];
       state.importMeta = null;
       state.today = [];
       state.todaySort = null;
+      state.memos = {};
       lastWorkbook = null;
       rebuildIndex();
       renderAll();
@@ -904,6 +925,8 @@
     $('#search-table').addEventListener('click', onSearchTableClick);
 
     $('#today-table').addEventListener('click', onTodayTableClick);
+    $('#today-table').addEventListener('input', onMemoInput);
+    $('#today-table').addEventListener('change', onMemoInput);
     $('#btn-clear-today').addEventListener('click', () => {
       if (!state.today.length || !confirm('当日リストを空にします。よろしいですか？')) return;
       state.today = [];
@@ -916,7 +939,10 @@
       renderPrint();
       window.print();
     });
-    window.addEventListener('beforeprint', renderPrint);
+    // 地図の印刷中（route.js）は一覧の印刷設定に切り替えない
+    window.addEventListener('beforeprint', () => {
+      if (!document.body.classList.contains('printing-map')) renderPrint();
+    });
 
     bindSetting('#visit-date', 'visitDate', true);
     bindSetting('#print-title', 'title', false);
@@ -933,6 +959,15 @@
     // 当日リストの患者（表示順）
     todayPatients() {
       return groupedToday().flatMap((g) => g.keys).map((k) => byKey.get(k));
+    },
+    // 時間メモ
+    memoOf,
+    // 当日リストが「訪問ルート順」か
+    isRouteOrder() {
+      return state.settings.listOrder === 'route';
+    },
+    visitDateText() {
+      return formatVisitDate(state.settings.visitDate || todayIso());
     },
     // 計算した訪問順を当日リストに反映する
     applyRouteOrder(keys) {
