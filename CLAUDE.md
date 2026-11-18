@@ -87,7 +87,7 @@
 
 ## 現在の状況（引き継ぎ時点）
 
-- 作業ブランチ: `claude/ecstatic-wozniak-ae0rwm`（`main` への PR #2）。以前の `claude/ecstatic-cannon-z0knsu`（PR #1）は取込済み。
+- 作業ブランチ: `claude/ecstatic-wozniak-ae0rwm`（`main` への PR #3。PR #1・#2 は取込済み）。
 - 元のリポジトリへの PR: Antibiotic-stock-control #1・Visit-Request #1・X-ray-management #1（いずれも `sync-from-my-business-app` ブランチ）。
 - **持参薬管理（Medication-Reconciliation）は Claude に書き込み権限が無いため未反映。利用者の指示で対応不要。**
 - 一度、テストデータに実在の患者名を入れてしまい、該当コミットを書き直して強制プッシュした経緯がある。今後は架空の名前だけを使うこと。
