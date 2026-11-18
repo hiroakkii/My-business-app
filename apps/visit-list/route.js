@@ -15,7 +15,8 @@
   const DEFAULT_CENTER = [35.681, 139.767];
 
   // cache: 住所 → { lat, lng, title, manual }（title は住所検索で見つかった地名）
-  const geo = { cache: {}, officeAddress: '', roundTrip: true, route: null };
+  // startTime: 出発時刻、serviceMin: 1件の滞在時間（分）、speedKmh: 移動の速さ（直線距離に対して）
+  const geo = { cache: {}, officeAddress: '', roundTrip: true, route: null, startTime: '09:30', serviceMin: 15, speedKmh: 20 };
   let map = null;
   let markerLayer = null;
   let pickAddr = null; // 地図クリックで位置を指定する住所
@@ -136,8 +137,63 @@
     return window.VisitApp.memoOf(p.key);
   }
 
+  function rulesOf(p) {
+    return window.VisitApp.rulesOf(p.key);
+  }
+
   function stopHasMemo(s) {
-    return s.patients.some((p) => memoOf(p));
+    return s.patients.some((p) => memoOf(p) || rulesOf(p).length);
+  }
+
+  // 訪問先で訪問できる時間帯（全員の条件を満たす時間）。条件なしなら null
+  function stopIntervals(s) {
+    return window.VisitSchedule.intervalsOfStop(s.patients.map(rulesOf));
+  }
+
+  function hasTimeRules(stops) {
+    return stops.some((s) => stopIntervals(s) != null);
+  }
+
+  function scheduleSettings() {
+    const start = window.VisitSchedule.parseHM(geo.startTime);
+    return {
+      start: start == null ? 9 * 60 + 30 : start,
+      svc: Math.max(0, Number(geo.serviceMin) || 0),
+      speed: Math.max(1, Number(geo.speedKmh) || 20),
+    };
+  }
+
+  // points[0] が事業所（hasDepot のとき）。各地点の時間帯と移動時間（分）
+  function scheduleContext(points, stopsOfPoints, hasDepot) {
+    const { start, svc, speed } = scheduleSettings();
+    const D = points.map((a) => points.map((b) => distKm(a, b) / speed * 60));
+    const intervals = points.map((_, i) => (hasDepot && i === 0 ? null : stopIntervals(stopsOfPoints[i - (hasDepot ? 1 : 0)])));
+    return { travel: (i, j) => D[i][j], start, svc, intervals, hasDepot, roundTrip: geo.roundTrip };
+  }
+
+  // 並び順どおりに回ったときの予定時刻。{ byId: Map(訪問先id → {begin, wait, late}), end, lateCount }
+  function scheduleOf(ordered) {
+    const office = pointOf(geo.officeAddress);
+    const points = (office ? [office] : []).concat(ordered.map((x) => x.point));
+    const ctx = scheduleContext(points, ordered, !!office);
+    const order = points.map((_, i) => i);
+    const sim = window.VisitSchedule.simulate(order, ctx);
+    const byId = new Map();
+    sim.visits.forEach((v) => byId.set(ordered[v.idx - (office ? 1 : 0)].id, v));
+    return { byId, end: sim.end, lateCount: sim.visits.filter((v) => v.late > 0).length, withOffice: !!office };
+  }
+
+  // 「10:05頃（待ち20分）」
+  function visitTimeText(v) {
+    if (!v) return '';
+    const wait = Math.round(v.wait);
+    return window.VisitSchedule.fmtAbout(v.begin) + (wait >= 5 ? `（待ち${wait}分）` : '');
+  }
+
+  function endText(sch) {
+    const S = window.VisitSchedule;
+    if (sch.withOffice && geo.roundTrip) return `帰着予定 ${S.fmtAbout(sch.end)}`;
+    return `最後の訪問の終了予定 ${S.fmtAbout(sch.end)}`;
   }
 
   // 番号を付ける順番（位置のわかる訪問先のみ）。
@@ -160,6 +216,11 @@
     let km = 0;
     for (let i = 0; i < pts.length - 1; i++) km += distKm(pts[i], pts[i + 1]);
     return km;
+  }
+
+  // 患者ごとの表示用：時間の条件の文字、メモ
+  function patientNotes(p) {
+    return [window.VisitSchedule.rulesText(rulesOf(p)), memoOf(p)].filter(Boolean);
   }
 
   function stopLabel(s) {
@@ -294,19 +355,30 @@
       return;
     }
     const points = (office ? [office] : []).concat(located.map((s) => s.point));
-    const { order, km } = solveRoute(points, !!office, geo.roundTrip);
+    let { order, km } = solveRoute(points, !!office, geo.roundTrip);
+    const timed = hasTimeRules(located);
+    if (timed) {
+      // 時間の条件がある場合：条件を守り、帰着（終了）が最も早くなる順番にする
+      const ctx = scheduleContext(points, located, !!office);
+      order = window.VisitSchedule.solveTimed(points.length, ctx, order).order;
+    }
     const stopOrder = order.filter((i) => !office || i !== 0).map((i) => located[i - (office ? 1 : 0)].id);
     geo.route = { stopIds: stopOrder, km, withOffice: !!office, roundTrip: geo.roundTrip, signature: signature(stops) };
     saveGeo();
     render();
     const missing = stops.length - located.length;
-    setStatus(`訪問順を計算しました（直線距離 合計 約${km.toFixed(1)}km）。${missing ? `位置が未設定の${missing}か所は含まれていません。` : ''}「この順番を当日リストに反映」で当日リスト・印刷の並びになります。`, missing > 0);
+    const ordered = stopOrder.map((id) => located.find((x) => x.id === id));
+    const sch = scheduleOf(ordered);
+    const lateMsg = sch.lateCount ? `時間の条件に間に合わない見込みの訪問先が${sch.lateCount}か所あります（一覧の赤字）。出発時刻を早める・条件を見直すなどしてください。` : '';
+    setStatus(`訪問順を計算しました（${timed ? '時間の条件を考慮。' : ''}直線距離 合計 約${pathKm(ordered).toFixed(1)}km、${endText(sch)}）。${lateMsg}${missing ? `位置が未設定の${missing}か所は含まれていません。` : ''}「この順番を当日リストに反映」で当日リスト・印刷の並びになります。`, missing > 0 || sch.lateCount > 0);
   }
 
   // 当日リストの訪問先が変わったかを判定するための値
   function signature(stops) {
     return stops.map((s) => s.id + ':' + (s.point ? `${s.point.lat},${s.point.lng}` : '')).sort().join('|')
-      + `#${geo.officeAddress}#${geo.roundTrip}`;
+      + `#${geo.officeAddress}#${geo.roundTrip}`
+      // 時間の条件・出発時刻などが変わったら計算し直す
+      + `#${stops.map((s) => s.id + JSON.stringify(stopIntervals(s))).sort().join('|')}#${geo.startTime}#${geo.serviceMin}#${geo.speedKmh}`;
   }
 
   function currentRoute(stops) {
@@ -384,8 +456,8 @@
     });
   }
 
-  function pinClass(s) {
-    return [s.gh ? 'gh' : '', stopHasMemo(s) ? 'has-memo' : ''].filter(Boolean).join(' ');
+  function pinClass(s, v) {
+    return [s.gh ? 'gh' : '', stopHasMemo(s) ? 'has-memo' : '', v && v.late > 0 ? 'late' : ''].filter(Boolean).join(' ');
   }
 
   function routeLine(ordered) {
@@ -398,7 +470,7 @@
     return line;
   }
 
-  function renderMap(stops, ordered) {
+  function renderMap(stops, ordered, sch) {
     ensureMap();
     if (!map) return;
     markerLayer.clearLayers();
@@ -409,10 +481,11 @@
     stops.forEach((s) => {
       if (!s.point) return;
       const no = numberOf.get(s.id);
-      const names = s.patients.map((p) => esc(p.name || p.id) + (memoOf(p) ? ` <span class="popup-memo">［${esc(memoOf(p))}］</span>` : '')).join('<br>');
-      const popup = `<b>${no ? `${no}. ` : ''}${esc(s.gh || '居宅')}</b><br>${names}<br><span class="popup-addr">${esc(s.addr)}</span>`
+      const names = s.patients.map((p) => esc(p.name || p.id) + patientNotes(p).map((t) => ` <span class="popup-memo">［${esc(t)}］</span>`).join('')).join('<br>');
+      const v = sch && sch.byId.get(s.id);
+      const popup = `<b>${no ? `${no}. ` : ''}${esc(s.gh || '居宅')}</b>${v ? ` <span class="popup-memo">${esc(visitTimeText(v))}</span>` : ''}<br>${names}<br><span class="popup-addr">${esc(s.addr)}</span>`
         + `<br><span class="popup-hit">検索結果: ${esc(s.point.title)}</span>`;
-      addMarker(s.addr, [s.point.lat, s.point.lng], pinIcon(no || '・', pinClass(s)), popup);
+      addMarker(s.addr, [s.point.lat, s.point.lng], pinIcon(no || '・', pinClass(s, v)), popup);
     });
     if (ordered && ordered.length) {
       L.polyline(routeLine(ordered), { color: '#1f6feb', weight: 3, opacity: 0.7, dashArray: '6 6' }).addTo(markerLayer);
@@ -449,8 +522,9 @@
     const stops = buildStops();
     const route = currentRoute(stops);
     const ordered = orderedStops(stops, route);
+    const sch = ordered && ordered.length ? scheduleOf(ordered) : null;
     renderButtons(stops, route);
-    renderMap(stops, ordered);
+    renderMap(stops, ordered, sch);
 
     const list = [];
     const office = pointOf(geo.officeAddress);
@@ -463,16 +537,18 @@
       const no = numbered.includes(s) ? `${numbered.indexOf(s) + 1}.` : '';
       const tag = s.point ? '' : '<span class="tag">位置未設定</span>';
       const pick = s.point ? '' : ` <button type="button" class="btn small" data-pick="${esc(s.addr)}"${s.addr ? '' : ' disabled'}>地図で指定</button>`;
-      const memos = s.patients.filter((p) => memoOf(p))
-        .map((p) => `<div class="route-memo">${s.patients.length > 1 ? `${esc(p.name || p.id)}: ` : ''}${esc(memoOf(p))}</div>`).join('');
-      list.push(`<li class="${s.gh ? 'gh' : ''}"><b>${no}</b> ${tag}${esc(stopLabel(s))}${pick}${memos}<div class="route-addr">${esc(s.addr || '（住所なし）')}</div></li>`);
+      const memos = s.patients.filter((p) => patientNotes(p).length)
+        .map((p) => `<div class="route-memo">${s.patients.length > 1 ? `${esc(p.name || p.id)}: ` : ''}${esc(patientNotes(p).join(' ／ '))}</div>`).join('');
+      const v = sch && sch.byId.get(s.id);
+      const time = v ? ` <span class="route-time${v.late > 0 ? ' late' : ''}">${esc(visitTimeText(v))}${v.late > 0 ? ' 時間の条件に間に合わない見込み' : ''}</span>` : '';
+      list.push(`<li class="${s.gh ? 'gh' : ''}"><b>${no}</b> ${tag}${esc(stopLabel(s))}${time}${pick}${memos}<div class="route-addr">${esc(s.addr || '（住所なし）')}</div></li>`);
     });
-    if (geo.officeAddress && geo.roundTrip && route && !route.stale) list.push('<li class="office">事業所（帰着）</li>');
+    if (geo.officeAddress && geo.roundTrip && route && !route.stale) list.push(`<li class="office">事業所（帰着）${sch ? ` <span class="route-time">${esc(window.VisitSchedule.fmtAbout(sch.end))}</span>` : ''}</li>`);
     $('#route-list').innerHTML = list.join('') || '<li class="empty">当日リストに患者を追加すると表示されます</li>';
 
     const summary = ordered
-      ? `直線距離 合計 約${pathKm(ordered).toFixed(1)}km（実際の道のりはこれより長くなります）`
-      : route && route.stale ? '当日リストまたは位置が変わりました。「訪問順を計算」をもう一度押してください。' : '';
+      ? `直線距離 合計 約${pathKm(ordered).toFixed(1)}km（実際の道のりはこれより長くなります）。${sch ? `${endText(sch)}（目安）。` : ''}${sch && sch.lateCount ? `時間の条件に間に合わない見込み: ${sch.lateCount}か所。` : ''}`
+      : route && route.stale ? '当日リスト・位置・時間の条件などが変わりました。「訪問順を計算」をもう一度押してください。' : '';
     $('#route-summary').textContent = summary;
 
     const links = ordered ? gmapsLinks(ordered) : [];
@@ -486,14 +562,21 @@
   const PRINT_TILE_WAIT_MS = 15000;
   let printMap = null;
 
-  function printRows(numbered, unlocated) {
+  function printRows(numbered, unlocated, sch) {
     const rows = [];
     const office = pointOf(geo.officeAddress);
     if (office) rows.push(`<tr class="office"><td class="no"><span class="mp-pin office">事</span></td><td colspan="2"><b>事業所（出発${geo.roundTrip ? '・帰着' : ''}）</b><div class="mp-addr">${esc(geo.officeAddress)}</div></td></tr>`);
     const stopRows = (s, no) => {
-      const noCell = (span) => `<td class="no"${span > 1 ? ` rowspan="${span}"` : ''}>${no ? `<span class="mp-pin ${pinClass(s)}">${no}</span>` : '－'}</td>`;
-      const memoCell = (p) => `<td class="memo">${esc(memoOf(p))}</td>`;
-      const rowCls = (p) => (memoOf(p) ? ' class="has-memo"' : '');
+      const v = sch && sch.byId.get(s.id);
+      const timeHtml = v ? `<div class="mp-time${v.late > 0 ? ' late' : ''}">${esc(window.VisitSchedule.fmtAbout(v.begin).replace('頃', ''))}</div>` : '';
+      const noCell = (span) => `<td class="no"${span > 1 ? ` rowspan="${span}"` : ''}>${no ? `<span class="mp-pin ${pinClass(s, v)}">${no}</span>` : '－'}${timeHtml}</td>`;
+      const memoCell = (p) => {
+        const rule = window.VisitSchedule.rulesText(rulesOf(p));
+        const late = v && v.late > 0 && rule ? '<div class="mp-late">※時間に間に合わない見込み</div>' : '';
+        const ruleLines = rulesOf(p).filter(window.VisitSchedule.validRule).map((r) => `<div class="mp-rule">${esc(window.VisitSchedule.ruleText(r))}</div>`).join('');
+        return `<td class="memo">${ruleLines}${memoOf(p) ? `<div>${esc(memoOf(p))}</div>` : ''}${late}</td>`;
+      };
+      const rowCls = (p) => (patientNotes(p).length ? ' class="has-memo"' : '');
       if (s.gh) {
         rows.push(`<tr class="gh-head">${noCell(s.patients.length + 1)}<td colspan="2"><b>${esc(s.gh)}</b>（${s.patients.length}名）<div class="mp-addr">${esc(s.addr || '（住所なし）')}</div></td></tr>`);
         s.patients.forEach((p) => rows.push(`<tr${rowCls(p)}><td class="name gh-member">${esc(p.name || p.id)}</td>${memoCell(p)}</tr>`));
@@ -529,11 +612,14 @@
     const numbered = ordered || located; // 未計算なら当日リストの順に番号を付ける
     const unlocated = stops.filter((s) => !numbered.includes(s));
     const people = stops.reduce((n, s) => n + s.patients.length, 0);
+    const sch = ordered && ordered.length ? scheduleOf(ordered) : null;
+    const set = scheduleSettings();
 
     $('#map-print-h1').textContent = '訪問ルート';
     $('#map-print-meta').textContent = `訪問日: ${window.VisitApp.visitDateText()}　${stops.length}か所・${people}名`
-      + (ordered ? `　直線距離 約${pathKm(ordered).toFixed(1)}km` : '　（番号は当日リストの順）');
-    $('#map-print-rows').innerHTML = printRows(numbered, unlocated);
+      + (ordered ? `　直線距離 約${pathKm(ordered).toFixed(1)}km` : '　（番号は当日リストの順）')
+      + (sch ? `\n${window.VisitSchedule.fmtHM(set.start)}出発・${endText(sch)}（予定時刻は1件${set.svc}分・時速${set.speed}kmで計算した目安）` : '');
+    $('#map-print-rows').innerHTML = printRows(numbered, unlocated, sch);
     $('#page-style').textContent = '@page { size: A4 landscape; margin: 10mm; }';
 
     busy = true;
@@ -561,7 +647,7 @@
       L.polyline(routeLine(ordered), { color: '#1f6feb', weight: 3, opacity: 0.85, dashArray: '7 5', interactive: false }).addTo(layer);
     }
     numbered.forEach((s, i) => {
-      L.marker([s.point.lat, s.point.lng], { icon: pinIcon(i + 1, pinClass(s)), interactive: false, zIndexOffset: 1000 - i }).addTo(layer);
+      L.marker([s.point.lat, s.point.lng], { icon: pinIcon(i + 1, pinClass(s, sch && sch.byId.get(s.id))), interactive: false, zIndexOffset: 1000 - i }).addTo(layer);
       pts.push([s.point.lat, s.point.lng]);
     });
     if (pts.length === 1) printMap.setView(pts[0], 16);
@@ -593,6 +679,16 @@
       geo.officeAddress = e.target.value.trim();
       saveGeo();
       render();
+    });
+    [['#start-time', 'startTime'], ['#service-min', 'serviceMin'], ['#speed-kmh', 'speedKmh']].forEach(([sel, key]) => {
+      const el = $(sel);
+      el.value = geo[key];
+      el.addEventListener('change', () => {
+        geo[key] = el.type === 'number' ? Number(el.value) || geo[key] : (el.value || geo[key]);
+        el.value = geo[key];
+        saveGeo();
+        render();
+      });
     });
     $('#trip-mode').addEventListener('change', (e) => {
       geo.roundTrip = e.target.value === 'round';

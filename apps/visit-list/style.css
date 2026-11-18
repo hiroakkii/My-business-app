@@ -222,6 +222,20 @@ dialog::backdrop { background: rgba(20, 30, 40, .45); }
 .popup-memo { color: #b45309; font-weight: 600; }
 .route-pin.has-memo span { box-shadow: 0 0 0 3px #d9480f, 0 1px 4px rgba(0, 0, 0, .4); }
 
+/* 時間の条件 */
+.memo-line { display: flex; align-items: center; gap: 6px; margin-top: 3px; flex-wrap: wrap; }
+.memo-line .btn.has-rules { border-color: #d9822b; background: #fff7ec; color: #9a4a00; font-weight: 600; }
+.rule-text { color: #9a4a00; font-weight: 600; font-size: 12px; }
+.num-input { width: 4.5em; }
+.rules-dialog { width: min(560px, 96vw); }
+.rule-rows { display: flex; flex-direction: column; gap: 6px; }
+.rule-row { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.rule-row input[type="time"] { padding: 5px 6px; border: 1px solid var(--border); border-radius: 6px; font: inherit; }
+.rules-error { color: var(--danger); margin: 0; min-height: 1.2em; }
+.route-time { color: #1f4fa8; font-weight: 600; font-size: 12px; }
+.route-time.late { color: var(--danger); }
+.route-pin.late span { background: var(--danger); }
+
 /* 地図の印刷（A4 横・余白 10mm → 印刷範囲 277mm × 190mm） */
 .map-print { display: none; }
 body.printing-map .map-print {
@@ -231,12 +245,13 @@ body.printing-map .map-print {
 }
 .map-print .print-head { display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 3mm; }
 .map-print .print-head h1 { font-size: 15pt; }
-#map-print-meta { font-size: 10.5pt; }
+.map-print .print-head h1 { white-space: nowrap; }
+#map-print-meta { font-size: 10pt; text-align: right; white-space: pre-line; }
 .map-print-body { display: flex; gap: 4mm; align-items: flex-start; }
-#map-print-map { flex: none; width: 170mm; height: 172mm; border: 1px solid #000; background: #fff; }
+#map-print-map { flex: none; width: 170mm; height: 165mm; border: 1px solid #000; background: #fff; }
 #map-print-map .leaflet-control-attribution { font-size: 8pt; background: rgba(255, 255, 255, .85); }
 .map-print-list { flex: 1; min-width: 0; border-collapse: collapse; table-layout: fixed; font-size: 9.5pt; }
-.map-print-list col.c-no { width: 10mm; }
+.map-print-list col.c-no { width: 12mm; }
 .map-print-list col.c-memo { width: 33mm; }
 .map-print-list th, .map-print-list td { border: 1px solid #000; padding: 1.2mm 1.5mm; text-align: left; vertical-align: middle; word-break: break-all; }
 .map-print-list th { background: #e6e6e6; font-size: 9pt; }
@@ -248,6 +263,11 @@ body.printing-map .map-print {
 .map-print-list tr.sep td { background: #eee; font-weight: 700; font-size: 9pt; }
 .map-print-list tr { break-inside: avoid; page-break-inside: avoid; }
 .mp-addr { font-size: 8pt; color: #333; }
+.mp-time { font-size: 8pt; font-weight: 700; margin-top: 0.5mm; }
+.mp-time.late, .mp-late { color: #c62828; }
+.mp-late { font-size: 8pt; }
+.mp-rule { font-weight: 700; }
+.mp-pin.late { background: #c62828; }
 .mp-pin {
   display: inline-flex; align-items: center; justify-content: center;
   width: 7mm; height: 7mm; border-radius: 50%;

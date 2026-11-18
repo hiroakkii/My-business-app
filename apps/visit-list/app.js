@@ -98,6 +98,7 @@
     today: [],
     todaySort: null, // { key, dir: 1 | -1 }
     memos: {}, // 患者キー → 時間メモ（訪問時間の制限など。マスタを取り込み直しても残す）
+    rules: {}, // 患者キー → 時間の条件 [{ kind: 'ok' | 'ng', from: 'HH:MM', to: 'HH:MM' }]（訪問順の計算に使う）
     settings: { version: 2, visitDate: '', title: '訪問予定患者一覧', birthFormat: 'ad', paper: 'landscape', ghPosition: 'last', listOrder: 'group' },
   };
   let byKey = new Map();
@@ -254,6 +255,7 @@
         today: state.today,
         todaySort: state.todaySort,
         memos: state.memos,
+        rules: state.rules,
         settings: state.settings,
       }));
     } catch (e) {
@@ -270,6 +272,7 @@
       state.today = Array.isArray(data.today) ? data.today : [];
       state.todaySort = data.todaySort || null;
       state.memos = data.memos && typeof data.memos === 'object' ? data.memos : {};
+      state.rules = data.rules && typeof data.rules === 'object' ? data.rules : {};
       const saved = data.settings || {};
       // 旧版の初期値（A4縦）で保存されている場合は A4横 にする
       if (!saved.version) { delete saved.paper; saved.version = 2; }
@@ -743,7 +746,11 @@
           <td>${esc(p.id)}</td><td>${esc(p.kana)}</td><td>${esc(p.name)}</td><td>${esc(p.sex)}</td>
           <td>${esc(formatBirth(p, fmt))}</td><td class="num">${esc(age != null ? age : '')}</td>
           <td class="addr">${esc(p.address)}
-            <input type="text" class="memo-input${memoOf(k) ? ' has-memo' : ''}" data-memo="${esc(k)}" value="${esc(memoOf(k))}" placeholder="時間メモ（例: 10時〜12時）" maxlength="60" title="訪問時間の制限など。地図の印刷に載ります"></td>
+            <div class="memo-line">
+              <button type="button" class="btn small${rulesOf(k).length ? ' has-rules' : ''}" data-rules="${esc(k)}" title="訪問できる／できない時間を登録すると、訪問順の計算で考慮します">時間の条件</button>
+              <span class="rule-text">${esc(window.VisitSchedule.rulesText(rulesOf(k)))}</span>
+            </div>
+            <input type="text" class="memo-input${memoOf(k) ? ' has-memo' : ''}" data-memo="${esc(k)}" value="${esc(memoOf(k))}" placeholder="メモ（例: 火曜は15時まで）" maxlength="60" title="自由に書けるメモ。地図の印刷に載ります（訪問順の計算には使いません）"></td>
           <td class="col-ops"><div class="ops">
             <button type="button" class="btn small" data-op="up" ${i === 0 ? 'disabled' : ''} title="上へ">↑</button>
             <button type="button" class="btn small" data-op="down" ${i === last ? 'disabled' : ''} title="下へ">↓</button>
@@ -774,9 +781,65 @@
     if (e.type === 'change' && window.VisitRoute) window.VisitRoute.refresh();
   }
 
+  function rulesOf(key) {
+    return state.rules[key] || [];
+  }
+
+  // ---------- 時間の条件の入力画面 ----------
+  let rulesKey = null;
+
+  function ruleRowHtml(r) {
+    return `<div class="rule-row">
+      <select class="rule-kind">
+        <option value="ok"${r.kind !== 'ng' ? ' selected' : ''}>訪問できる</option>
+        <option value="ng"${r.kind === 'ng' ? ' selected' : ''}>訪問できない</option>
+      </select>
+      <input type="time" class="rule-from" step="300" value="${esc(r.from || '')}">
+      <span>〜</span>
+      <input type="time" class="rule-to" step="300" value="${esc(r.to || '')}">
+      <button type="button" class="btn small" data-rule-del>削除</button>
+    </div>`;
+  }
+
+  function openRulesDialog(key) {
+    const p = byKey.get(key);
+    if (!p) return;
+    rulesKey = key;
+    $('#rules-name').textContent = p.name || p.id;
+    const rules = rulesOf(key);
+    $('#rules-rows').innerHTML = (rules.length ? rules : [{ kind: 'ok', from: '', to: '' }]).map(ruleRowHtml).join('');
+    $('#rules-error').textContent = '';
+    $('#rules-dialog').showModal();
+  }
+
+  function readRulesDialog() {
+    const rows = [...document.querySelectorAll('#rules-rows .rule-row')];
+    const rules = [];
+    for (const row of rows) {
+      const r = { kind: row.querySelector('.rule-kind').value, from: row.querySelector('.rule-from').value, to: row.querySelector('.rule-to').value };
+      if (!r.from && !r.to) continue; // 空の行は無視
+      if (!window.VisitSchedule.validRule(r)) return { error: `「${r.from}〜${r.to}」は、始まりが終わりより前になるように入力してください。` };
+      rules.push(r);
+    }
+    return { rules };
+  }
+
+  function saveRulesDialog() {
+    const { rules, error } = readRulesDialog();
+    if (error) { $('#rules-error').textContent = error; return; }
+    if (rules.length) state.rules[rulesKey] = rules;
+    else delete state.rules[rulesKey];
+    save();
+    $('#rules-dialog').close();
+    rulesKey = null;
+    renderToday();
+  }
+
   function onTodayTableClick(e) {
     const th = e.target.closest('th.sortable');
     if (th) { sortToday(th.dataset.key); return; }
+    const rb = e.target.closest('button[data-rules]');
+    if (rb) { openRulesDialog(rb.dataset.rules); return; }
     const btn = e.target.closest('button[data-op]');
     if (!btn) return;
     const key = btn.closest('tr').dataset.key;
@@ -901,7 +964,7 @@
       if (lastWorkbook) openImportDialog(lastWorkbook.wb, lastWorkbook.fileName, state.importMeta && state.importMeta.fileName === lastWorkbook.fileName ? state.importMeta : null);
     });
     $('#btn-clear-all').addEventListener('click', () => {
-      if (!confirm('このブラウザに保存されている患者マスタ・当日リスト・時間メモを消去します。よろしいですか？')) return;
+      if (!confirm('このブラウザに保存されている患者マスタ・当日リスト・時間の条件・メモを消去します。よろしいですか？')) return;
       localStorage.removeItem(STORAGE_KEY);
       if (window.VisitRoute) window.VisitRoute.clearStorage();
       state.patients = [];
@@ -909,6 +972,7 @@
       state.today = [];
       state.todaySort = null;
       state.memos = {};
+      state.rules = {};
       lastWorkbook = null;
       rebuildIndex();
       renderAll();
@@ -926,6 +990,11 @@
 
     $('#today-table').addEventListener('click', onTodayTableClick);
     $('#today-table').addEventListener('input', onMemoInput);
+    $('#rules-add').addEventListener('click', () => $('#rules-rows').insertAdjacentHTML('beforeend', ruleRowHtml({ kind: 'ok', from: '', to: '' })));
+    $('#rules-rows').addEventListener('click', (e) => { if (e.target.closest('[data-rule-del]')) e.target.closest('.rule-row').remove(); });
+    $('#rules-ok').addEventListener('click', saveRulesDialog);
+    $('#rules-cancel').addEventListener('click', () => { $('#rules-dialog').close(); rulesKey = null; });
+    $('#rules-clear').addEventListener('click', () => { $('#rules-rows').innerHTML = ''; });
     $('#today-table').addEventListener('change', onMemoInput);
     $('#btn-clear-today').addEventListener('click', () => {
       if (!state.today.length || !confirm('当日リストを空にします。よろしいですか？')) return;
@@ -960,8 +1029,9 @@
     todayPatients() {
       return groupedToday().flatMap((g) => g.keys).map((k) => byKey.get(k));
     },
-    // 時間メモ
+    // 時間メモ・時間の条件
     memoOf,
+    rulesOf,
     // 当日リストが「訪問ルート順」か
     isRouteOrder() {
       return state.settings.listOrder === 'route';
