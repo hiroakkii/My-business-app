@@ -85,7 +85,7 @@
           </select>
         </label>
       </div>
-      <p class="hint">列の見出しをクリックすると並べ替えます（もう一度で逆順）。グループホームの患者は居宅と分け、ホームごとにまとめて並べ替えます。「訪問ルート順」では下の地図で計算した順番になり、グループホームの患者の直前にホーム名の行が入ります。↑↓で個別に順番を変更できます。年齢は訪問日時点で計算します。</p>
+      <p class="hint">列の見出しをクリックすると並べ替えます（もう一度で逆順）。グループホームの患者は居宅と分け、ホームごとにまとめて並べ替えます。「訪問ルート順」では下の地図で計算した順番になり、グループホームの患者の直前にホーム名の行が入ります。↑↓で個別に順番を変更できます。年齢は訪問日時点で計算します。住所の下の「時間の条件」で訪問できる／できない時間を登録すると、訪問順の計算で考慮します。「メモ」は自由に書けて、地図の印刷に載ります（どちらも患者ごとに保存し、次回も残ります）。</p>
       <div class="table-wrap">
         <table class="data-table" id="today-table">
           <thead>
@@ -96,7 +96,7 @@
               <th class="sortable" data-key="sex">性別</th>
               <th class="sortable" data-key="birth">生年月日</th>
               <th class="sortable" data-key="age">年齢</th>
-              <th class="sortable" data-key="address">住所</th>
+              <th class="sortable" data-key="address">住所 ／ 時間の条件・メモ</th>
               <th class="col-ops">操作</th>
             </tr>
           </thead>
@@ -120,16 +120,21 @@
             <option value="oneway">片道（最後の訪問先で終了）</option>
           </select>
         </label>
+        <label>出発時刻 <input type="time" id="start-time" step="300"></label>
+        <label>1件の滞在 <input type="number" id="service-min" min="0" max="180" step="5" class="num-input"> 分</label>
+        <label>移動の速さ 時速 <input type="number" id="speed-kmh" min="1" max="80" step="1" class="num-input"> km</label>
       </div>
       <div class="route-actions">
         <button type="button" class="btn" id="btn-geocode">① 住所から位置を取得</button>
         <button type="button" class="btn" id="btn-optimize">② 訪問順を計算</button>
         <button type="button" class="btn primary" id="btn-apply-route">③ この順番を当日リストに反映</button>
         <button type="button" class="btn" id="btn-fit">全体を表示</button>
+        <button type="button" class="btn primary" id="btn-print-map">地図を印刷</button>
       </div>
       <p class="hint">
         ①では住所の文字列だけを国土地理院の住所検索に送ります（氏名・IDなどは送りません）。取得した位置はこのブラウザに保存し、同じ住所は再送信しません。
         ピンはドラッグで位置を直せます。②の計算はこのPCの中で行います（直線距離。同じグループホームは1か所として計算）。
+        当日リストで「時間の条件」を登録した患者がいると、その時間を守り、帰着が最も早くなる順番にします。予定時刻は直線距離と移動の速さから出した目安です。
       </p>
       <p class="route-status" id="route-status"></p>
       <div class="route-body">
@@ -156,6 +161,42 @@
       </thead>
       <tbody id="print-body"></tbody>
     </table>
+  </section>
+
+  <!-- 時間の条件の入力画面 -->
+  <dialog id="rules-dialog" class="no-print rules-dialog">
+    <div class="dialog-body">
+      <h2>時間の条件：<span id="rules-name"></span></h2>
+      <p class="hint">
+        訪問順の計算で、この時間を守るように順番と予定時刻を決めます。片方の時刻を空欄にすると「何時以降」「何時まで」になります。<br>
+        例）10時〜12時のみ →「訪問できる 10:00〜12:00」 ／ 14時以降 →「訪問できる 14:00〜（空欄）」<br>
+        　　12時〜13時は不可 →「訪問できない 12:00〜13:00」 ／ 9〜11時か14〜16時 →「訪問できる」を2行
+      </p>
+      <div id="rules-rows" class="rule-rows"></div>
+      <div><button type="button" class="btn small" id="rules-add">＋ 条件を追加</button></div>
+      <p class="rules-error" id="rules-error"></p>
+      <div class="dialog-actions">
+        <button type="button" class="btn danger-outline" id="rules-clear">条件をすべて消す</button>
+        <button type="button" class="btn" id="rules-cancel">キャンセル</button>
+        <button type="button" class="btn primary" id="rules-ok">保存</button>
+      </div>
+    </div>
+  </dialog>
+
+  <!-- 地図の印刷用（「地図を印刷」を押したときだけ使う） -->
+  <section id="map-print" class="map-print">
+    <div class="print-head">
+      <h1 id="map-print-h1">訪問ルート</h1>
+      <div id="map-print-meta"></div>
+    </div>
+    <div class="map-print-body">
+      <div id="map-print-map"></div>
+      <table class="map-print-list">
+        <colgroup><col class="c-no"><col><col class="c-memo"></colgroup>
+        <thead><tr><th>No.<br>予定</th><th>患者名・住所</th><th>時間の条件・メモ</th></tr></thead>
+        <tbody id="map-print-rows"></tbody>
+      </table>
+    </div>
   </section>
 
   <!-- 取込確認画面 -->
@@ -200,6 +241,7 @@
 
   <script src="lib/xlsx.full.min.js"></script>
   <script src="lib/leaflet/leaflet.js"></script>
+  <script src="schedule.js"></script>
   <script src="app.js"></script>
   <script src="route.js"></script>
 <!-- まとめ版の「患者マスタ一括取込」用（単独で開いたときは何もしません） -->
