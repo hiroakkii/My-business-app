@@ -515,6 +515,7 @@
     $('#btn-optimize').disabled = busy || !stops.some((s) => s.point);
     $('#btn-apply-route').disabled = busy || !route || route.stale;
     $('#btn-print-map').disabled = busy || !stops.some((s) => s.point);
+    $('#btn-route-question').disabled = !stops.length;
   }
 
   function render() {
@@ -662,6 +663,65 @@
     window.print();
   }
 
+  // ---------- 経路の相談文（住所と時間の条件を並べた文章。氏名・IDは入れない） ----------
+  function questionText() {
+    const S = window.VisitSchedule;
+    const stops = buildStops();
+    const office = geo.officeAddress || '（事業所の住所）';
+    const { start, svc } = scheduleSettings();
+    const head = geo.roundTrip
+      ? `開始地点、終了地点は${office}として、経由地は以下の通り。`
+      : `開始地点は${office}、終了地点は最後の経由地として、経由地は以下の通り。`;
+    const lines = [
+      head + '住所の横に付随した時間の制限があるものとして、時間指定の条件を満たしながら、最短で回るのはどのような順番で回るのが良いか？',
+      `（出発時刻は${S.fmtHM(start)}、各経由地での滞在時間は${svc}分とします。）`,
+      '',
+    ];
+    let noAddr = 0;
+    stops.forEach((s) => {
+      if (!s.addr) { noAddr += 1; return; }
+      const cond = S.stopRulesShort(s.patients.map(rulesOf));
+      lines.push(cond ? `${s.addr}　${cond}` : s.addr);
+    });
+    return { text: lines.join('\n'), count: stops.length - noAddr, noAddr };
+  }
+
+  function openQuestion() {
+    const { text, count, noAddr } = questionText();
+    const warns = [];
+    if (!geo.officeAddress) warns.push('「事業所（出発地）の住所」が未入力です。入力すると文章の開始・終了地点に入ります。');
+    if (!count) warns.push('当日リストに住所のある訪問先がありません。');
+    if (noAddr) warns.push(`住所が空欄の${noAddr}名は文章に入っていません。`);
+    $('#question-warn').textContent = warns.join(' ');
+    $('#question-warn').hidden = !warns.length;
+    $('#question-text').value = text;
+    $('#question-status').textContent = '';
+    $('#question-dialog').showModal();
+  }
+
+  async function copyQuestion() {
+    const ta = $('#question-text');
+    const text = ta.value;
+    let ok = false;
+    try {
+      if (navigator.clipboard && window.isSecureContext) {
+        await navigator.clipboard.writeText(text);
+        ok = true;
+      }
+    } catch (e) {
+      ok = false;
+    }
+    if (!ok) {
+      // まとめ画面のタブの中などで使えない場合の代わり
+      ta.focus();
+      ta.select();
+      try { ok = document.execCommand('copy'); } catch (e) { ok = false; }
+    }
+    const st = $('#question-status');
+    st.textContent = ok ? 'コピーしました。貼り付けたい所で Ctrl + V を押してください。' : 'コピーできませんでした。文章を選んで Ctrl + C でコピーしてください。';
+    st.classList.toggle('is-warn', !ok);
+  }
+
   function clearStorage() {
     localStorage.removeItem(GEO_KEY);
     geo.cache = {};
@@ -700,6 +760,9 @@
     $('#btn-apply-route').addEventListener('click', applyRoute);
     $('#btn-fit').addEventListener('click', fitAll);
     $('#btn-print-map').addEventListener('click', startPrintMap);
+    $('#btn-route-question').addEventListener('click', openQuestion);
+    $('#question-copy').addEventListener('click', copyQuestion);
+    $('#question-close').addEventListener('click', () => $('#question-dialog').close());
     $('#route-list').addEventListener('click', (e) => {
       const b = e.target.closest('button[data-pick]');
       if (!b) return;

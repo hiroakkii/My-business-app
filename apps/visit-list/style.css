@@ -236,6 +236,10 @@ dialog::backdrop { background: rgba(20, 30, 40, .45); }
 .route-time.late { color: var(--danger); }
 .route-pin.late span { background: var(--danger); }
 
+/* 経路の相談文 */
+.question-dialog { width: min(760px, 96vw); }
+#question-text { width: 100%; font: inherit; font-size: 14px; line-height: 1.6; padding: 8px; border: 1px solid var(--border); border-radius: 6px; resize: vertical; }
+
 /* 地図の印刷（A4 横・余白 10mm → 印刷範囲 277mm × 190mm） */
 .map-print { display: none; }
 body.printing-map .map-print {
