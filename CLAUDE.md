@@ -63,6 +63,7 @@
 - 薬剤在庫管理: 処方メモの状態を 未発行（黄）／指示未記載（赤）／指示記載済 で管理、「指示記載を確認」、
   絞り込み・並び順、医師別 未記載一覧（医師ごとに1ページ印刷。医師名に「先生」は付けない、No.・記載・ID列なし、
   患者名・日付は収まらないときだけ文字を縮小）、お守り薬一覧の見出しクリックで並べ替え、ふりがな・ひらがなでの検索。
+  処方メモは A5 横で印刷（開いている間だけ `#memo-page-style` で `@page` を A5 横に切り替え。医師別一覧などは A4 のまま）。
   ロジックは `apps/stock/js/logic.js`、テストは `apps/stock/tests/`（`npm test`）。
 - 訪問リスト印刷: 当日リストの住所の下に「時間メモ」（患者キーごとに `visitPatientList.v1` の `memos` に保存）、
   訪問ルート欄の「地図を印刷」（A4横。左に番号付き地図、右に番号・患者名・住所・時間メモ。印刷用に別の Leaflet 地図を
@@ -86,7 +87,7 @@
 
 ## 現在の状況（引き継ぎ時点）
 
-- 作業ブランチ: `claude/ecstatic-wozniak-ae0rwm`（`main` への PR #3。PR #1・#2 は取込済み）。
+- 作業ブランチ: `claude/ecstatic-wozniak-ae0rwm`（PR #1〜#3 は `main` に取込済み）。
 - 元のリポジトリへの PR: Antibiotic-stock-control #1・Visit-Request #1・X-ray-management #1（いずれも `sync-from-my-business-app` ブランチ）。
 - **持参薬管理（Medication-Reconciliation）は Claude に書き込み権限が無いため未反映。利用者の指示で対応不要。**
 - 一度、テストデータに実在の患者名を入れてしまい、該当コミットを書き直して強制プッシュした経緯がある。今後は架空の名前だけを使うこと。

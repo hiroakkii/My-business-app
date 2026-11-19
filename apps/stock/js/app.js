@@ -870,13 +870,30 @@
     '</div>';
   }
 
+  // 処方メモは A5 横で印刷する（医師別 未記載一覧などは style.css の A4 のまま）
+  const MEMO_PAGE_CSS = '@page { size: A5 landscape; margin: 8mm; }';
+
+  function setMemoPage(on) {
+    let el = document.getElementById('memo-page-style');
+    if (on && !el) {
+      el = document.createElement('style');
+      el.id = 'memo-page-style';
+      el.textContent = MEMO_PAGE_CSS;
+      document.head.appendChild(el);
+    } else if (!on && el) {
+      el.remove();
+    }
+  }
+
   function openMemo(usages) {
     memoTargets = usages;
     $('#memo-sheet').innerHTML = usages.map(memoHTML).join('');
+    setMemoPage(true);
     document.body.classList.add('memo-open');
   }
 
   function closeMemo() {
+    setMemoPage(false);
     document.body.classList.remove('memo-open');
     memoTargets = [];
     render();

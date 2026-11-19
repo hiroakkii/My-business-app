@@ -244,6 +244,10 @@ body.memo-open #memo-overlay, body.waiting-open #waiting-overlay {
   .memo { margin: 0 auto; padding: 0; width: 100%; max-width: 190mm; page-break-after: always; }
   .memo:last-child { page-break-after: auto; }
   .memo-table th { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  /* A5 横（余白 8mm → 印刷範囲 194mm × 132mm）。指示内容の欄を広げて用紙を使い切る */
+  body.memo-open .memo { max-width: 190mm; break-inside: avoid; page-break-inside: avoid; }
+  body.memo-open .memo-title { margin-top: 2mm; }
+  body.memo-open .memo-inst-th, body.memo-open .memo-inst { height: 60mm; }
 }
 
 .drug-row { border: 1px solid var(--border); border-radius: 6px; margin-bottom: 12px; background: #fafcff; }
