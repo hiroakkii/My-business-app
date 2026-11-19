@@ -47,6 +47,45 @@
     return r.kind === 'ok' ? `${range} 可` : `${range} 不可`;
   }
 
+  // 「12-16時可」「13時以降可」「12-13時不可」のような短い表記（経路の相談文用）
+  function hShort(min) {
+    const h = Math.floor(min / 60);
+    const m = min % 60;
+    return m ? `${h}:${String(m).padStart(2, '0')}` : String(h);
+  }
+
+  // 分があるときは「10:00-10:30」「11:30まで」、ちょうどの時刻だけなら「12-16時」「13時以降」
+  function rangeShort(a, b) {
+    const hasA = a != null && a > 0;
+    const hasB = b != null && b < DAY_END;
+    const withMin = (hasA && a % 60) || (hasB && b % 60);
+    const f = (m) => (withMin ? fmtHM(m) : hShort(m));
+    const ji = withMin ? '' : '時';
+    if (hasA && hasB) return `${f(a)}-${f(b)}${ji}`;
+    if (hasA) return `${f(a)}${ji}以降`;
+    if (hasB) return `${f(b)}${ji}まで`;
+    return '終日';
+  }
+
+  function ruleShort(r) {
+    return rangeShort(parseHM(r.from), parseHM(r.to)) + (r.kind === 'ok' ? '可' : '不可');
+  }
+
+  // 1名分の条件を短い表記で（無効な行は除く）
+  function rulesShort(rules) {
+    return (rules || []).filter(validRule).map(ruleShort).join('、');
+  }
+
+  // 複数名の訪問先：全員の条件を満たす時間帯を「可」の形で表す。条件なしなら ''
+  function stopRulesShort(rulesList) {
+    const withRules = rulesList.filter((rs) => (rs || []).some(validRule));
+    if (!withRules.length) return '';
+    if (withRules.length === 1) return rulesShort(withRules[0]);
+    const iv = intervalsOfStop(rulesList);
+    if (!iv.length) return '訪問できる時間なし（条件が重ならない）';
+    return iv.map(([a, b]) => rangeShort(a, b) + '可').join('、');
+  }
+
   function rulesText(rules) {
     return (rules || []).filter(validRule).map(ruleText).join('、');
   }
@@ -224,7 +263,7 @@
     return { order: best, sched: simulate(best, ctx) };
   }
 
-  const api = { parseHM, fmtHM, fmtAbout, validRule, ruleText, rulesText, intervalsOf, intervalsOfStop, placeVisit, simulate, solveTimed };
+  const api = { parseHM, fmtHM, fmtAbout, validRule, ruleText, rulesText, rulesShort, stopRulesShort, intervalsOf, intervalsOfStop, placeVisit, simulate, solveTimed };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.VisitSchedule = api;
 })(typeof window !== 'undefined' ? window : globalThis);

@@ -130,6 +130,7 @@
         <button type="button" class="btn primary" id="btn-apply-route">③ この順番を当日リストに反映</button>
         <button type="button" class="btn" id="btn-fit">全体を表示</button>
         <button type="button" class="btn primary" id="btn-print-map">地図を印刷</button>
+        <button type="button" class="btn" id="btn-route-question" title="住所と時間の条件を並べた相談文を作り、コピーします（氏名・IDは入りません）">経路の相談文をコピー</button>
       </div>
       <p class="hint">
         ①では住所の文字列だけを国土地理院の住所検索に送ります（氏名・IDなどは送りません）。取得した位置はこのブラウザに保存し、同じ住所は再送信しません。
@@ -179,6 +180,21 @@
         <button type="button" class="btn danger-outline" id="rules-clear">条件をすべて消す</button>
         <button type="button" class="btn" id="rules-cancel">キャンセル</button>
         <button type="button" class="btn primary" id="rules-ok">保存</button>
+      </div>
+    </div>
+  </dialog>
+
+  <!-- 経路の相談文（住所と時間の条件を並べた文章をコピーする） -->
+  <dialog id="question-dialog" class="no-print question-dialog">
+    <div class="dialog-body">
+      <h2>経路の相談文</h2>
+      <p class="hint">当日リストの訪問先の住所と時間の条件を並べた文章です（氏名・IDは入りません）。必要なら直してから「コピーする」を押し、貼り付けて使ってください。</p>
+      <p class="warn" id="question-warn" hidden></p>
+      <textarea id="question-text" rows="16" spellcheck="false"></textarea>
+      <p class="route-status" id="question-status"></p>
+      <div class="dialog-actions">
+        <button type="button" class="btn" id="question-close">閉じる</button>
+        <button type="button" class="btn primary" id="question-copy">コピーする</button>
       </div>
     </div>
   </dialog>

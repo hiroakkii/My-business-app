@@ -75,3 +75,16 @@ test('どうしても間に合わない場合は時間外を報告', () => {
   const { sched } = S.solveTimed(2, ctx);
   assert.ok(sched.visits[0].late > 0);
 });
+
+test('経路の相談文用の短い表記', () => {
+  assert.strictEqual(S.rulesShort([{ kind: 'ok', from: '12:00', to: '16:00' }]), '12-16時可');
+  assert.strictEqual(S.rulesShort([{ kind: 'ok', from: '13:00', to: '' }]), '13時以降可');
+  assert.strictEqual(S.rulesShort([{ kind: 'ng', from: '12:00', to: '13:00' }]), '12-13時不可');
+  assert.strictEqual(S.rulesShort([{ kind: 'ok', from: '', to: '11:30' }]), '11:30まで可');
+  assert.strictEqual(S.rulesShort([{ kind: 'ok', from: '09:00', to: '11:00' }, { kind: 'ng', from: '10:00', to: '10:30' }]), '9-11時可、10:00-10:30不可');
+  assert.strictEqual(S.stopRulesShort([[], []]), '');
+  assert.strictEqual(S.stopRulesShort([[{ kind: 'ng', from: '12:00', to: '13:00' }], []]), '12-13時不可');
+  // グループホームで2名に条件 → 両方を満たす時間
+  assert.strictEqual(S.stopRulesShort([[{ kind: 'ok', from: '10:00', to: '15:00' }], [{ kind: 'ok', from: '13:00', to: '' }]]), '13-15時可');
+  assert.strictEqual(S.stopRulesShort([[{ kind: 'ok', from: '09:00', to: '10:00' }], [{ kind: 'ok', from: '13:00', to: '' }]]), '訪問できる時間なし（条件が重ならない）');
+});
