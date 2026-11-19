@@ -250,7 +250,7 @@ td.c-calc{padding-top:9px;font-size:13px;line-height:1.4}
         <option value="desc">回数の多い順</option>
         <option value="asc">回数の少ない順</option>
       </select>
-      <span class="bulkdays" title="すべての薬剤(一包化にチェックした薬・残薬数を入力済みの薬・頓用・週1回などは除く)の残日数を同じ日数にします">残日数を一括<input id="bulkDays" inputmode="numeric" autocomplete="off">日分<button id="btnBulkDays" style="padding:3px 10px">すべてに入れる</button></span>
+      <span class="bulkdays" title="すべての薬剤の残日数と、一包化の薬が使う「一包化の残り」を同じ日数にします(残薬数を入力済みの薬・頓用・週1回などは除く)">残日数を一括<input id="bulkDays" inputmode="numeric" autocomplete="off">日分<button id="btnBulkDays" style="padding:3px 10px">すべてに入れる</button></span>
       <span class="spacer"></span>
       <label class="adjl" title="この日の最終服用まで残薬が届くのに必要な処方日数を、各薬剤に表示します">残薬を合わせる日<input type="date" id="adjDate"></label>
       <button id="btnPrintMemo" title="初診前の残薬確認用。残薬数までは同じで、右側は全てメモ欄(空白)にして印刷します">残薬確認用印刷</button>
@@ -557,12 +557,17 @@ function recalcAll(){ [...tbody.children].forEach((tr,i)=>drawCalc(tr,state.rows
 
 /* ---------- 状態 ---------- */
 function nowLocal(){const d=new Date();d.setSeconds(0,0);return new Date(d-d.getTimezoneOffset()*6e4).toISOString().slice(0,16)}
-function blankRow(){return {name:'',kbn:'',type:0,code:'',freq:'',use:'',dose:'',rem:'',remDays:'',pack:false,act:'',memo:'',flags:[]}}
+// 患者の「一包化」が「あり」のときに追加した薬は、最初から一包化にチェックを入れる
+function blankRow(){return {name:'',kbn:'',type:0,code:'',freq:'',use:'',dose:'',rem:'',remDays:'',pack:packOn(),act:'',memo:'',flags:[]}}
+function packOn(){ return typeof state!=='undefined'&&!!state&&!!state.patient&&state.patient.pack==='あり'; }
+const NO_PACK_FLAGS=['一包化不可','別包','ヒートのまま'];
+// 一包化に含められる薬か(頓用・週1回など、調剤指示で一包化しない薬は除く)
+function packable(r){ return !parseUse(r.use).err&&!(r.flags||[]).some(f=>NO_PACK_FLAGS.includes(f)); }
 const BLANK_PACK={朝:'',昼:'',夕:'',寝前:''};
 const ROW_FLAGS=['別包','ヒートのまま','粉砕不可','一包化不可'];   // 薬剤ごとのチェック項目
 let state;
 function newId(){return (window.crypto&&crypto.randomUUID)?crypto.randomUUID():Date.now().toString(36)+Math.random().toString(36).slice(2)}
-function fresh(){return {id:newId(),patient:{name:'',pid:'',dt:nowLocal(),by:'',allergy:'',pack:'',crush:'',route:''},times:{...DEFAULT_TIMES},packDays:{...BLANK_PACK},sortDesc:true,adjDate:'',rows:[blankRow()]}}
+function fresh(){return {id:newId(),patient:{name:'',pid:'',dt:nowLocal(),by:'',allergy:'',pack:'',crush:'',route:''},times:{...DEFAULT_TIMES},packDays:{...BLANK_PACK},sortDesc:true,adjDate:'',rows:[Object.assign(blankRow(),{pack:false})]}}
 // 変更のたびに呼ぶ。少し待ってから IndexedDB へ保存する(flush)
 function save(){ dirty=true; clearTimeout(saveTimer); saveTimer=setTimeout(flush,400); }
 function normalizeState(s){
@@ -572,7 +577,7 @@ function normalizeState(s){
   if(s.patient.date&&!s.patient.dt) s.patient.dt=s.patient.date+'T09:00';  // 旧形式
   s.times=Object.assign({...DEFAULT_TIMES},s.times||{});
   s.packDays=Object.assign({...BLANK_PACK},s.packDays||{});
-  if(!s.rows.length) s.rows.push(blankRow());
+  if(!s.rows.length) s.rows.push(Object.assign(blankRow(),{pack:s.patient.pack==='あり'}));
   if(typeof s.sortDesc!=='boolean') s.sortDesc=true;
   if(typeof s.adjDate!=='string') s.adjDate='';
   if(!s.id) s.id=newId();
@@ -637,6 +642,8 @@ function closeFp(){ fpEl.style.display='none'; fp.btn=fp.r=fp.tr=null; }
 fpEl.addEventListener('change',()=>{
   if(!fp.r) return;
   fp.r.flags=ROW_FLAGS.filter(f=>fpEl.querySelector('input[value="'+f+'"]').checked);
+  // 一包化不可・別包・ヒートのまま にしたら一包化のチェックを外す
+  if(fp.r.pack&&!packable(fp.r)){ fp.r.pack=false; fp.tr.querySelector('[data-pack]').checked=false; drawCalc(fp.tr,fp.r); }
   drawFlags(fp.tr,fp.r); save();
 });
 document.addEventListener('mousedown',e=>{ if(fp.btn&&!fpEl.contains(e.target)&&e.target!==fp.btn) closeFp(); });
@@ -808,6 +815,15 @@ document.addEventListener('mousedown',e=>{ if(ac.el&&!acEl.contains(e.target)&&e
 
 /* ---------- 患者情報・ボタン ---------- */
 document.getElementById('adjDate').addEventListener('input',e=>{ state.adjDate=e.target.value; save(); recalcAll(); });
+// 患者の「一包化」: あり → 一包化できる薬にチェック、なし・空欄 → すべて外す
+function applyPackSetting(){
+  const on=state.patient.pack==='あり';
+  state.rows.forEach(r=>{ r.pack=on&&packable(r); });
+  render();
+}
+document.querySelectorAll('[data-p]').forEach(el=>el.addEventListener('change',()=>{
+  if(el.dataset.p==='pack'){ state.patient.pack=el.value; save(); applyPackSetting(); }
+}));
 document.querySelectorAll('[data-p]').forEach(el=>el.addEventListener('input',()=>{
   state.patient[el.dataset.p]=el.value; save(); if(el.dataset.p==='dt') recalcAll();
 }));
@@ -817,15 +833,23 @@ document.querySelectorAll('[data-t]').forEach(el=>el.addEventListener('input',()
 document.querySelectorAll('[data-pd]').forEach(el=>el.addEventListener('input',()=>{
   state.packDays[el.dataset.pd]=el.value.trim(); save(); recalcAll();
 }));
-// 残日数の一括入力(一包化にチェックした薬・残薬数を入力済みの薬・頓用・週1回など日数で数えられない薬は除く)
+// 残日数の一括入力。一包化の薬は「一包化の残り」に入れる(残薬数を入力済みの薬・頓用・週1回など日数で数えられない薬は除く)
 document.getElementById('btnBulkDays').onclick=()=>{
   const n=intDays(document.getElementById('bulkDays').value);
   if(n==null){ alert('日数を数字で入力してください。'); return; }
-  const targets=state.rows.filter(r=>(r.name||r.use||r.dose)&&!r.pack&&!(r.rem||'').trim()&&!parseUse(r.use).err);
-  if(!targets.length){ alert('残日数を入れられる薬剤がありません(一包化にチェックした薬・残薬数を入力済みの薬・頓用などは対象外です)。'); return; }
+  const has=r=>r.name||r.use||r.dose;
+  const targets=state.rows.filter(r=>has(r)&&!r.pack&&!(r.rem||'').trim()&&!parseUse(r.use).err);
+  // 一包化の薬が使う服用時点(朝・昼・夕・就寝前)の「一包化の残り」にも同じ日数を入れる
+  const packSlots=SLOTS.filter(k=>state.rows.some(r=>has(r)&&r.pack&&(parseUse(r.use).slots||[]).includes(k)));
+  if(!targets.length&&!packSlots.length){ alert('残日数を入れられる薬剤がありません(残薬数を入力済みの薬・頓用・週1回などは対象外です)。'); return; }
   const filled=targets.filter(r=>(r.remDays||'').trim()!==''&&intDays(r.remDays)!==n).length;
-  if(filled&&!confirm('すでに残日数が入っている'+filled+'件も '+n+'日分 に置き換えます。よろしいですか?')) return;
+  const packFilled=packSlots.filter(k=>intDays(state.packDays[k])!=null&&intDays(state.packDays[k])!==n);
+  const warns=[];
+  if(filled) warns.push('・すでに残日数が入っている薬 '+filled+'件');
+  if(packFilled.length) warns.push('・個別に入力済みの一包化の残り('+packFilled.map(k=>SLOT_LABEL[k]+' '+intDays(state.packDays[k])+'日分').join('、')+')');
+  if(warns.length&&!confirm('次の入力も '+n+'日分 に置き換えます。よろしいですか?\n'+warns.join('\n'))) return;
   targets.forEach(r=>r.remDays=String(n));
+  packSlots.forEach(k=>state.packDays[k]=String(n));
   save(); render();
 };
 document.getElementById('btnNow').onclick=()=>{ state.patient.dt=nowLocal(); save(); render(); };
