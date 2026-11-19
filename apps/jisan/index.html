@@ -81,7 +81,19 @@ tr.drop-before td{box-shadow:inset 0 3px 0 var(--accent)}
 tr.drop-after td{box-shadow:inset 0 -3px 0 var(--accent)}
 td.x{width:34px;text-align:center}
 td input,td select{padding:5px 6px}
-.c-name{width:21%}.c-use{width:19%}.c-dose{width:8%}.c-rem{width:6%}.c-calc{width:15%}.c-next{width:9%}.c-act{width:8%}.c-memo{width:12%}
+.c-name{width:20%}.c-use{width:18%}.c-dose{width:8%}.c-rem{width:6%}.c-days{width:8%}.c-calc{width:14%}.c-next{width:8%}.c-act{width:7%}.c-memo{width:9%}
+.days-cell{display:flex;align-items:center;gap:3px}
+.days-cell .u{font-size:12px;color:var(--sub);white-space:nowrap}
+.packchk{display:flex;align-items:center;gap:3px;font-size:11px;color:var(--sub);margin-top:3px;cursor:pointer;white-space:nowrap}
+.packchk input{width:auto;margin:0}
+.packchk.on{color:#8a5200;font-weight:600}
+.packinfo{font-size:11px;color:#8a5200;margin-top:2px}
+.pfd{display:none}
+.packdays{display:flex;flex-wrap:wrap;align-items:center;gap:6px 12px;margin-top:8px;font-size:13px}
+.packdays label{display:flex;align-items:center;gap:4px}
+.packdays input{width:64px;padding:3px 6px}
+.bulkdays{display:flex;align-items:center;gap:4px;font-size:13px;color:var(--sub)}
+.bulkdays input{width:60px}
 td.c-next{padding-top:9px;font-size:13px;font-weight:600;color:var(--accent)}
 .c-note,.ph-sub{display:none}   /* 残薬確認用印刷のときだけ使う */
 .flagbtn{display:block;width:100%;margin-top:3px;padding:1px 6px;font-size:11px;text-align:left;color:var(--sub);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;border-style:dashed}
@@ -93,7 +105,7 @@ td.c-next{padding-top:9px;font-size:13px;font-weight:600;color:var(--accent)}
 .adjl{display:flex;align-items:center;gap:6px;font-size:13px;color:var(--sub)}
 .adjl input{width:auto}
 @page{size:A4 landscape;margin:0}   /* 余白0にするとブラウザ標準のヘッダー・フッターが出ない。余白は .frame の thead/tfoot で作る */
-:root{--pw-name:.26;--pw-use:.13;--pw-dose:.09;--pw-memo:.13}   /* 印刷時の列幅(上の @media print の幅と合わせる) */
+:root{--pw-name:.24;--pw-use:.13;--pw-dose:.09;--pw-memo:.11}   /* 印刷時の列幅(上の @media print の幅と合わせる) */
 .pf{display:none}
 .use-cell{display:flex;gap:4px}
 .use-cell .fq{flex:0 0 74px;width:74px;padding-left:4px;padding-right:2px}
@@ -134,7 +146,7 @@ td.c-calc{padding-top:9px;font-size:13px;line-height:1.4}
 
 @media print{
   body{background:#fff}
-  header,.toolbar,.rm,.noprint,#ac,.info,.times,#side,.warnbar{display:none!important}
+  header,.toolbar,.rm,.noprint,#ac,.info,.times,.packdays,#side,.warnbar{display:none!important}
   .layout{display:block;margin:0;padding:0;max-width:none}
   main{max-width:none;margin:0;padding:0}
   .frame{display:table;width:calc(100% - 20mm);margin:0 auto}   /* 左右10mm */
@@ -148,7 +160,7 @@ td.c-calc{padding-top:9px;font-size:13px;line-height:1.4}
   .ph-title{font-size:26px;font-weight:700;letter-spacing:.05em}
   /* 残薬確認用: 残薬数の右隣に「メモ」列を置き、それより右の列(残薬はいつまで〜備考)は出さない */
   body.print-memo .c-calc,body.print-memo .c-next,body.print-memo .c-act,body.print-memo .c-memo{display:none}
-  body.print-memo .c-note{display:table-cell;width:43%}
+  body.print-memo .c-note{display:table-cell;width:38%}
   body.print-memo .ph-sub{display:inline;font-size:16px;font-weight:600}
   body.print-memo #rows td{height:11mm}
   .ph-time{font-size:10px;color:#555}
@@ -157,12 +169,13 @@ td.c-calc{padding-top:9px;font-size:13px;line-height:1.4}
   .patient input,.patient select{border:1px solid #888;border-radius:4px;padding:3px 6px;background:#fff;appearance:none}
   .flagbtn,#fp{display:none!important}
   .pflags{display:block;font-size:11px;padding:0 2px}
+  .pfd{display:block;font-size:11px;line-height:1.3;padding:2px;white-space:normal;word-break:keep-all;overflow-wrap:anywhere}   /* 残日数(一包化は折り返して表示) */
   table{min-width:0;table-layout:fixed}
   .grip{display:none}
-  .use-cell,.c-name input,.c-dose input,.c-memo input{display:none}
+  .use-cell,.c-name input,.c-dose input,.c-memo input,.days-cell,.packchk,.packinfo{display:none!important}
   .pf{display:block;white-space:nowrap;overflow:hidden;font-size:12px;padding:2px}
   th.no,td.no{width:9mm;padding:2px 0}   /* 行番号の列(薬剤名と重ならないよう幅を確保。他の列の合計は97%) */
-  .c-name{width:26%}.c-use{width:13%}.c-dose{width:9%}.c-rem{width:6%}.c-calc{width:14%}.c-next{width:9%}.c-act{width:7%}.c-memo{width:13%}
+  .c-name{width:24%}.c-use{width:13%}.c-dose{width:9%}.c-rem{width:6%}.c-days{width:7%}.c-calc{width:13%}.c-next{width:8%}.c-act{width:6%}.c-memo{width:11%}
   td.c-next{color:var(--ink)}
   input::placeholder{color:transparent}
   th.x,td.x{display:none}
@@ -218,6 +231,14 @@ td.c-calc{padding-top:9px;font-size:13px;line-height:1.4}
       <label>就寝前<input type="time" data-t="寝前"></label>
       <button id="btnNow" class="noprint" style="padding:3px 10px">確認日時を現在に</button>
     </div>
+    <div class="packdays" title="一包化の残りを、服用時点ごとの日数(包数)で入力します。各薬剤の「一包化」にチェックした薬に使います">
+      <span>一包化の残り:</span>
+      <label>朝<input data-pd="朝" inputmode="numeric" autocomplete="off">日分</label>
+      <label>昼<input data-pd="昼" inputmode="numeric" autocomplete="off">日分</label>
+      <label>夕<input data-pd="夕" inputmode="numeric" autocomplete="off">日分</label>
+      <label>就寝前<input data-pd="寝前" inputmode="numeric" autocomplete="off">日分</label>
+      <span class="foot">（薬剤の「一包化」にチェックした薬に使います）</span>
+    </div>
   </section>
 
   <section class="card">
@@ -229,6 +250,7 @@ td.c-calc{padding-top:9px;font-size:13px;line-height:1.4}
         <option value="desc">回数の多い順</option>
         <option value="asc">回数の少ない順</option>
       </select>
+      <span class="bulkdays" title="すべての薬剤(一包化にチェックした薬・残薬数を入力済みの薬・頓用・週1回などは除く)の残日数を同じ日数にします">残日数を一括<input id="bulkDays" inputmode="numeric" autocomplete="off">日分<button id="btnBulkDays" style="padding:3px 10px">すべてに入れる</button></span>
       <span class="spacer"></span>
       <label class="adjl" title="この日の最終服用まで残薬が届くのに必要な処方日数を、各薬剤に表示します">残薬を合わせる日<input type="date" id="adjDate"></label>
       <button id="btnPrintMemo" title="初診前の残薬確認用。残薬数までは同じで、右側は全てメモ欄(空白)にして印刷します">残薬確認用印刷</button>
@@ -239,7 +261,7 @@ td.c-calc{padding-top:9px;font-size:13px;line-height:1.4}
       <table>
         <thead><tr>
           <th class="no"></th><th class="c-name">薬剤名</th><th class="c-use">用法</th><th class="c-dose">用量(1日量)</th>
-          <th class="c-rem">残薬数</th><th class="c-note">メモ</th><th class="c-calc">残薬はいつまで</th><th class="c-next">次回処方日数</th><th class="c-act">対応</th><th class="c-memo">備考</th><th class="x"></th>
+          <th class="c-rem">残薬数</th><th class="c-days" title="錠数のかわりに残りの日数で入力できます(入力すると残薬数より優先)">残日数</th><th class="c-note">メモ</th><th class="c-calc">残薬はいつまで</th><th class="c-next">次回処方日数</th><th class="c-act">対応</th><th class="c-memo">備考</th><th class="x"></th>
         </tr></thead>
         <tbody id="rows"></tbody>
       </table>
@@ -398,23 +420,70 @@ function parseDT(v){
   return m?new Date(+m[1],m[2]-1,+m[3],+m[4],+m[5]):null;
 }
 function fmtNum(x){return Math.round(x*100)/100+''}
+function intDays(v){ const t=String(v==null?'':v).normalize('NFKC').trim(); if(t==='') return null; const n=parseFloat(t); return isNaN(n)||n<0?null:Math.floor(n); }
+// 残薬の入力方法: pack=一包化(服用時点ごとの日数) / days=残日数 / count=残薬数(錠数など)
+function remainMode(r){ if(r.pack) return 'pack'; if(intDays(r.remDays)!=null) return 'days'; return 'count'; }
+// 日数での入力を、服用時点ごとの残り回数にする。{stocks:{朝:10,…}, text:'一包化 朝10・夕8日分'} か {err}
+function slotStocks(r,slots){
+  const stocks={};
+  if(r.pack){
+    const miss=slots.filter(k=>intDays(state.packDays[k])==null);
+    if(miss.length) return {err:'一包化の'+miss.map(k=>SLOT_LABEL[k]).join('・')+'の日数が未入力'};
+    slots.forEach(k=>stocks[k]=intDays(state.packDays[k]));
+    const same=slots.every(k=>stocks[k]===stocks[slots[0]]);
+    return {stocks,text:'一包化 '+(same&&slots.length>1?stocks[slots[0]]+'日分':slots.map(k=>SLOT_LABEL[k]+stocks[k]).join('・')+'日分')};
+  }
+  const n=intDays(r.remDays);
+  slots.forEach(k=>stocks[k]=n);
+  return {stocks,text:'残 '+n+'日分'};
+}
 function calcRemain(r){
+  const mode=remainMode(r);
   const remain=parseFloat((r.rem||'').normalize('NFKC'));
-  if(!r.use&&!r.dose&&!r.rem) return null;
+  if(!r.use&&!r.dose&&!r.rem&&mode==='count') return null;
   const u=parseUse(r.use); if(u.err!==undefined) return u.err?{err:u.err}:null;
-  const d=parseDose(r.dose,u.slots); if(d.err!==undefined) return d.err?{err:d.err}:null;
-  if(isNaN(remain)) return null;
+  let d=parseDose(r.dose,u.slots);
+  if(d.err!==undefined){
+    // 日数で入力したときは、用量が空欄でも用法の時点だけで計算できる
+    if(mode==='count'||d.err) return d.err?{err:d.err}:null;
+    d={per:Object.fromEntries(u.slots.map(k=>[k,1])),slots:u.slots,unit:'',noDose:true};
+  }
+  if(mode==='count'&&isNaN(remain)) return null;
   const start=parseDT(state.patient.dt); if(!start) return {err:'確認日時を入力してください'};
   const times=d.slots.map(k=>{const [h,mi]=(state.times[k]||DEFAULT_TIMES[k]).split(':');return {k,h:+h,mi:+mi,q:d.per[k]}})
                      .sort((a,b)=>a.h*60+a.mi-(b.h*60+b.mi));
-  const {last,count,rem}=simulate(times,start,remain);
   const u2=d.unit||'';
-  // 残薬を指定日に合わせる計算用の情報(perDay=1日量、lastAt/lastK=残薬で飲める最後の服用)
-  const ext={times,start,remain,unit:u2,perDay:times.reduce((s,t)=>s+t.q,0),lastAt:last&&last.at,lastK:last&&last.k};
-  if(!last) return {err:'次回分に不足', sub:'残 '+fmtNum(remain)+u2, ...ext};
-  const a=last.at;
-  const sub=u.guess?'時点は推定':'';   // 用法から服用時点を決められず回数で推定したときだけ注記
-  return {main:fmtD(a)+' '+SLOT_LABEL[last.k]+'まで', sub, at:a, ...ext};
+  const guess=u.guess?'時点は推定':'';   // 用法から服用時点を決められず回数で推定したときだけ注記
+  let last, ext, remText;
+  if(mode==='count'){
+    ({last}=simulate(times,start,remain));
+    remText='残 '+fmtNum(remain)+u2;
+    // 残薬を指定日に合わせる計算用の情報(perDay=1日量、lastAt/lastK=残薬で飲める最後の服用)
+    ext={times,start,remain,unit:u2,perDay:times.reduce((s,t)=>s+t.q,0),lastAt:last&&last.at,lastK:last&&last.k};
+  } else {
+    const st=slotStocks(r,d.slots); if(st.err) return {err:st.err};
+    ({last}=simulateSlots(times,start,st.stocks));
+    remText=st.text;
+    ext={times,start,stocks:st.stocks,unit:u2,perDay:times.reduce((s,t)=>s+t.q,0),lastAt:last&&last.at,lastK:last&&last.k};
+  }
+  if(!last) return {err:'次回分に不足', sub:remText, ...ext};
+  const sub=[mode==='count'?'':remText,guess].filter(Boolean).join('・');
+  return {main:fmtD(last.at)+' '+SLOT_LABEL[last.k]+'まで', sub, at:last.at, ...ext};
+}
+// 服用時点ごとの残り回数(日数)で数える版。stocks={朝:10,夕:8} のように時点ごとに1回ずつ減らす
+function simulateSlots(times,start,stocks,tDay){
+  const left=Object.assign({},stocks); let last=null,count=0,after=0;
+  const day=dayStart(start);
+  outer: for(let i=0;i<3660;i++){
+    for(const t of times){
+      const at=new Date(day.getFullYear(),day.getMonth(),day.getDate()+i,t.h,t.mi);
+      if(at<=start) continue;
+      if(!(left[t.k]>=1)) break outer;
+      left[t.k]-=1; last={at,k:t.k}; count++;
+      if(tDay&&at>=dayStart(tDay,1)) after++;
+    }
+  }
+  return {last,count,after};
 }
 function fmtD(d){return (d.getMonth()+1)+'/'+d.getDate()+'('+WD[d.getDay()]+')'}
 function dayStart(d,add){return new Date(d.getFullYear(),d.getMonth(),d.getDate()+(add||0))}
@@ -450,10 +519,29 @@ function calcAdjust(c){
   const D=Math.round((T-sd)/864e5)+1;
   if(D<=0) return {enough:true};
   const qty=Math.round(D*c.perDay*100)/100;
-  const s=simulate(times,c.start,c.remain+qty,T);
+  const s=c.stocks
+    ? simulateSlots(times,c.start,Object.fromEntries(Object.entries(c.stocks).map(([k,v])=>[k,v+D])),T)
+    : simulate(times,c.start,c.remain+qty,T);
   return {days:D,qty,unit:c.unit,sd,T,first:times[0].k,finalK:finalSlot.k,after:s.after,until:s.last};
 }
+function drawDays(tr,r){
+  const inp=tr.querySelector('[data-f=remDays]'), info=tr.querySelector('.packinfo'), chk=tr.querySelector('.packchk');
+  chk.classList.toggle('on',!!r.pack);
+  inp.disabled=!!r.pack;
+  inp.placeholder=r.pack?'一包化':'例: 14';
+  if(r.pack){
+    const u=parseUse(r.use), slots=u.slots||[];
+    const parts=slots.map(k=>SLOT_LABEL[k]+(intDays(state.packDays[k])==null?'?':intDays(state.packDays[k])));
+    info.textContent=parts.length?parts.join('・')+'日分':'';
+    r.daysText='一包化'+(parts.length?' '+parts.join('・'):'');
+  } else {
+    info.textContent='';
+    r.daysText=intDays(r.remDays)!=null?intDays(r.remDays)+'日分':'';
+  }
+  tr.querySelector('.pfd').textContent=r.daysText;   // 印刷用
+}
 function drawCalc(tr,r){
+  drawDays(tr,r);
   const el=tr.querySelector('.calc'), nx=tr.querySelector('.next'); const c=calcRemain(r);
   r.adj=''; nx.textContent='';
   if(!c){ el.className='calc'; el.innerHTML=''; r.until=''; return }
@@ -469,11 +557,12 @@ function recalcAll(){ [...tbody.children].forEach((tr,i)=>drawCalc(tr,state.rows
 
 /* ---------- 状態 ---------- */
 function nowLocal(){const d=new Date();d.setSeconds(0,0);return new Date(d-d.getTimezoneOffset()*6e4).toISOString().slice(0,16)}
-function blankRow(){return {name:'',kbn:'',type:0,code:'',freq:'',use:'',dose:'',rem:'',act:'',memo:'',flags:[]}}
+function blankRow(){return {name:'',kbn:'',type:0,code:'',freq:'',use:'',dose:'',rem:'',remDays:'',pack:false,act:'',memo:'',flags:[]}}
+const BLANK_PACK={朝:'',昼:'',夕:'',寝前:''};
 const ROW_FLAGS=['別包','ヒートのまま','粉砕不可','一包化不可'];   // 薬剤ごとのチェック項目
 let state;
 function newId(){return (window.crypto&&crypto.randomUUID)?crypto.randomUUID():Date.now().toString(36)+Math.random().toString(36).slice(2)}
-function fresh(){return {id:newId(),patient:{name:'',pid:'',dt:nowLocal(),by:'',allergy:'',pack:'',crush:'',route:''},times:{...DEFAULT_TIMES},sortDesc:true,adjDate:'',rows:[blankRow()]}}
+function fresh(){return {id:newId(),patient:{name:'',pid:'',dt:nowLocal(),by:'',allergy:'',pack:'',crush:'',route:''},times:{...DEFAULT_TIMES},packDays:{...BLANK_PACK},sortDesc:true,adjDate:'',rows:[blankRow()]}}
 // 変更のたびに呼ぶ。少し待ってから IndexedDB へ保存する(flush)
 function save(){ dirty=true; clearTimeout(saveTimer); saveTimer=setTimeout(flush,400); }
 function normalizeState(s){
@@ -482,6 +571,7 @@ function normalizeState(s){
   s.patient=Object.assign(f.patient,s.patient||{});
   if(s.patient.date&&!s.patient.dt) s.patient.dt=s.patient.date+'T09:00';  // 旧形式
   s.times=Object.assign({...DEFAULT_TIMES},s.times||{});
+  s.packDays=Object.assign({...BLANK_PACK},s.packDays||{});
   if(!s.rows.length) s.rows.push(blankRow());
   if(typeof s.sortDesc!=='boolean') s.sortDesc=true;
   if(typeof s.adjDate!=='string') s.adjDate='';
@@ -497,6 +587,7 @@ function render(){
   state.rows.forEach((r,i)=>tbody.appendChild(rowEl(r,i)));
   document.querySelectorAll('[data-p]').forEach(el=>el.value=state.patient[el.dataset.p]||'');
   document.querySelectorAll('[data-t]').forEach(el=>el.value=state.times[el.dataset.t]||'');
+  document.querySelectorAll('[data-pd]').forEach(el=>el.value=state.packDays[el.dataset.pd]||'');
   document.getElementById('adjDate').value=state.adjDate||'';
 }
 /* 1日の回数 → 用法の選択肢(特殊な用法は「その他」で手入力) */
@@ -564,6 +655,9 @@ function rowEl(r,i){
      '<div class="uslot"></div></div><span class="pf" data-pf="use"></span></td>'+
    '<td class="c-dose"><input data-f="dose" autocomplete="off" placeholder="例: 3錠" value="'+esc(r.dose)+'"><span class="pf" data-pf="dose"></span></td>'+
    '<td class="c-rem"><input data-f="rem" inputmode="decimal" autocomplete="off" placeholder="例: 10" value="'+esc(r.rem)+'"></td>'+
+   '<td class="c-days"><div class="days-cell"><input data-f="remDays" inputmode="numeric" autocomplete="off" placeholder="例: 14" value="'+esc(r.remDays||'')+'"><span class="u">日分</span></div>'+
+     '<label class="packchk" title="一包化の薬は、上の「一包化の残り」の日数を使います"><input type="checkbox" data-pack'+(r.pack?' checked':'')+'>一包化</label><div class="packinfo"></div>'+
+     '<span class="pfd"></span></td>'+
    '<td class="c-note"></td>'+
    '<td class="c-calc"><div class="calc"></div></td>'+
    '<td class="c-next"><div class="next"></div></td>'+
@@ -589,7 +683,7 @@ function rowEl(r,i){
       r[f]=el.value;
       if(f==='name'){ r.code=''; r.type=0; r.kbn=''; refreshInfo(tr,r); openAc(el,r,tr); }
       if(f==='act') el.className='act-'+r.act;
-      if(f==='use'||f==='dose'||f==='rem') drawCalc(tr,r);
+      if(f==='use'||f==='dose'||f==='rem'||f==='remDays') drawCalc(tr,r);
       save();
     });
     if(f==='name'){
@@ -598,6 +692,7 @@ function rowEl(r,i){
       el.addEventListener('blur',()=>setTimeout(()=>{ if(ac.el===el&&!acHold&&document.activeElement!==el) closeAc() },150));
     }
   });
+  tr.querySelector('[data-pack]').addEventListener('change',e=>{ r.pack=e.target.checked; drawCalc(tr,r); save(); });
   tr.querySelector('.rm').addEventListener('click',()=>{
     state.rows.splice(i,1); if(!state.rows.length) state.rows.push(blankRow()); save(); render();
   });
@@ -719,6 +814,20 @@ document.querySelectorAll('[data-p]').forEach(el=>el.addEventListener('input',()
 document.querySelectorAll('[data-t]').forEach(el=>el.addEventListener('input',()=>{
   if(el.value){ state.times[el.dataset.t]=el.value; save(); recalcAll(); }
 }));
+document.querySelectorAll('[data-pd]').forEach(el=>el.addEventListener('input',()=>{
+  state.packDays[el.dataset.pd]=el.value.trim(); save(); recalcAll();
+}));
+// 残日数の一括入力(一包化にチェックした薬・残薬数を入力済みの薬・頓用・週1回など日数で数えられない薬は除く)
+document.getElementById('btnBulkDays').onclick=()=>{
+  const n=intDays(document.getElementById('bulkDays').value);
+  if(n==null){ alert('日数を数字で入力してください。'); return; }
+  const targets=state.rows.filter(r=>(r.name||r.use||r.dose)&&!r.pack&&!(r.rem||'').trim()&&!parseUse(r.use).err);
+  if(!targets.length){ alert('残日数を入れられる薬剤がありません(一包化にチェックした薬・残薬数を入力済みの薬・頓用などは対象外です)。'); return; }
+  const filled=targets.filter(r=>(r.remDays||'').trim()!==''&&intDays(r.remDays)!==n).length;
+  if(filled&&!confirm('すでに残日数が入っている'+filled+'件も '+n+'日分 に置き換えます。よろしいですか?')) return;
+  targets.forEach(r=>r.remDays=String(n));
+  save(); render();
+};
 document.getElementById('btnNow').onclick=()=>{ state.patient.dt=nowLocal(); save(); render(); };
 document.getElementById('btnAdd').onclick=()=>{
   state.rows.push(blankRow()); save(); render();
@@ -784,7 +893,7 @@ function parseImportLine(line){
   if(!name||DAYS_ONLY_RE.test(name)) return null;   // 「28日分」だけの行などは薬剤ではない
   const r=blankRow(); r.name=name;
   let m=rest.match(REM_RE);
-  if(m){ r.rem=m[1]; rest=rest.replace(m[0],' '); }
+  if(m){ if(/日分$/.test(m[0])) r.remDays=m[1]; else r.rem=m[1]; rest=rest.replace(m[0],' '); }
   m=rest.match(SLOTDOSE_RE);
   if(m){ r.dose=m[0].replace(/[\s　]+/g,' ').trim(); rest=rest.replace(m[0],' '); }
   m=rest.match(TIMING_RE)||rest.match(OTHERUSE_RE);
@@ -997,7 +1106,7 @@ function dbRun(mode,fn,store){
 function dbWarn(m){ const el=document.getElementById('dbWarn'); el.textContent=m; el.hidden=false; }
 function isBlank(s){
   const p=s.patient;
-  return !p.name&&!p.pid&&!p.allergy&&!p.by&&s.rows.every(r=>!r.name&&!r.use&&!r.dose&&!r.rem&&!r.memo&&!r.act);
+  return !p.name&&!p.pid&&!p.allergy&&!p.by&&s.rows.every(r=>!r.name&&!r.use&&!r.dose&&!r.rem&&!r.remDays&&!r.pack&&!r.memo&&!r.act);
 }
 function makeRec(s,updated){
   const p=s.patient;
