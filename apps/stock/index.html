@@ -106,6 +106,7 @@
           <option value="no">未発行のみ</option>
           <option value="yes">発行済のみ（記載済・未記載とも）</option>
           <option value="written">指示記載済のみ</option>
+          <option value="removed">死亡・退院による削除のみ</option>
         </select>
         <select id="usage-filter-doctor" title="開始指示医師で絞り込み"></select>
         <select id="usage-sort" title="並び順">
@@ -172,6 +173,7 @@
         <label class="check"><input type="checkbox" id="patient-replace" checked> 既存の患者マスタを置き換える</label>
         <button id="patient-template">ひな形をダウンロード</button>
         <button id="patient-clear">患者マスタを削除</button>
+        <button id="patient-orphans" title="死亡・退院などで患者マスタから外れた患者のお守り薬を一覧にします">マスタにない患者を確認</button>
         <input type="search" id="patient-search" placeholder="患者名・IDで検索">
       </div>
       <p class="hint">
@@ -215,6 +217,32 @@
       </div>
     </section>
   </main>
+
+  <!-- 患者マスタにない患者のお守り薬（死亡・退院などでマスタから外れた患者） -->
+  <dialog id="orphan-dialog" class="no-print orphan-dialog">
+    <div class="form">
+      <h2>患者マスタにない患者のお守り薬</h2>
+      <p class="wide warn-box" id="orphan-lead"></p>
+      <div class="wide orphan-tools">
+        <button type="button" id="orphan-all">すべて選択</button>
+        <button type="button" id="orphan-none">選択を解除</button>
+        <span class="hint" id="orphan-count"></span>
+      </div>
+      <div class="wide table-wrap orphan-wrap">
+        <table class="list" id="orphan-table">
+          <thead><tr><th class="chk"></th><th>患者名</th><th>薬剤名</th><th>数量</th><th>処方日</th><th>状態</th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+      <p class="wide hint">削除すると、お守り薬一覧から消え、使用記録（データシート）に「死亡または退院による削除」として記録が残ります。
+        まだ削除しない場合は「閉じる」を押してください（「患者マスタ」タブの「マスタにない患者を確認」からいつでも開けます）。</p>
+      <div class="buttons wide">
+        <button type="button" class="danger" id="orphan-delete-selected">選択したものを削除</button>
+        <button type="button" class="danger" id="orphan-delete-all">すべて削除</button>
+        <button type="button" id="orphan-close">閉じる</button>
+      </div>
+    </div>
+  </dialog>
 
   <!-- 使用開始指示ダイアログ -->
   <dialog id="use-dialog" class="no-print">

@@ -50,7 +50,9 @@
       s.match(/読み込み件数：\s*(\d[\d,]*)\s*名/) || s.match(/取り込みました:\s*(\d[\d,]*)\s*人/);
     var x = s.match(/(\d[\d,]*)\s*(?:名|人|件)\s*(?:は除外|は取り込みません)/);
     if (!n) return s;
-    return n[1] + '名を取り込みました' + (x ? '（ID に WA・名前に [亘] の ' + x[1] + '名は除外）' : '');
+    // 「※ …」で始まる注意書き（マスタにない患者がいる など）はそのまま残す
+    var notes = (String(msg || '').match(/※[^\n]*/g) || []).join(' ');
+    return n[1] + '名を取り込みました' + (x ? '（ID に WA・名前に [亘] の ' + x[1] + '名は除外）' : '') + (notes ? ' ' + notes : '');
   }
 
   function $(s) { return document.querySelector(s); }
