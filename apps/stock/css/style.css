@@ -103,6 +103,16 @@ button.small { padding: 3px 8px; font-size: 13px; }
 .chip.yellow { background: var(--yellow-strong); color: #3d3000; }
 .chip.red { background: var(--red-strong); color: #fff; }
 .chip.green { background: var(--green-bg); color: var(--green-strong); }
+.chip.gray { background: #e6e9ee; color: #374151; }
+/* 患者マスタにない患者のお守り薬 */
+.orphan-dialog { width: min(860px, 96vw); }
+.orphan-tools { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.orphan-wrap { max-height: 50vh; overflow: auto; }
+#orphan-table th.chk, #orphan-table td.chk { width: 36px; text-align: center; }
+#orphan-table td.chk input { width: auto; min-width: 0; }
+#orphan-table tr.pt-head td { background: #f3f5f8; font-weight: bold; }
+.warn-box { background: #fff4d6; border: 1px solid var(--yellow-strong); border-radius: 4px; padding: 8px 10px; margin: 0; }
+tr.row-removed td { color: var(--muted); background: #f6f7f9; }
 
 .table-wrap { overflow-x: auto; background: var(--panel); border: 1px solid var(--border); border-radius: 6px; }
 table.list { border-collapse: collapse; width: 100%; }

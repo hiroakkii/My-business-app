@@ -102,11 +102,11 @@
 
   // 使用開始指示済みで、処方メモが未発行の使用記録（あれば）
   function pendingUsage(s) {
-    return db.usages.find((u) => u.stockId === s.id && !u.memoIssued) || null;
+    return db.usages.find((u) => u.stockId === s.id && u.kind !== 'removed' && !u.memoIssued) || null;
   }
 
   function latestUsage(s) {
-    const list = db.usages.filter((u) => u.stockId === s.id);
+    const list = db.usages.filter((u) => u.stockId === s.id && u.kind !== 'removed');
     return list.length ? list[list.length - 1] : null;
   }
 
@@ -146,6 +146,7 @@
 
   // お守り薬一覧の「指示未記載」から、使用記録を指示未記載で絞り込んで開く
   $('#stock-summary').addEventListener('click', (e) => {
+    if (e.target.closest('#stock-orphan-chip')) { openOrphans(); return; }
     if (!e.target.closest('#stock-waiting-chip')) return;
     $('#usage-filter-memo').value = 'waiting';
     $('#usage-filter-doctor').value = '';
@@ -261,6 +262,7 @@
     const active = db.stocks.filter((s) => s.state === '在庫').map(stockStatus).filter(Boolean);
     const pendingCount = db.stocks.filter((s) => pendingUsage(s)).length;
     const waitingCount = db.usages.filter((u) => L.memoState(u) === 'waiting').length;
+    const orphanCount = L.stocksMissingFromMaster(db.stocks, db.patients).length;
     const count = (k) => active.filter((i) => i.status === k).length;
     $('#stock-summary').innerHTML =
       'お守り薬 <b>' + active.length + '</b> 件　' +
@@ -268,7 +270,8 @@
       '<span class="chip yellow">黄 ' + count('yellow') + '</span>' +
       '<span class="chip green">期限内 ' + count('green') + '</span>' +
       (pendingCount ? '　<span class="chip red">処方メモ未発行 ' + pendingCount + '</span>' : '') +
-      (waitingCount ? '　<button type="button" class="chip red link" id="stock-waiting-chip" title="使用記録を、指示未記載で絞り込んで開きます">処方メモの指示未記載 ' + waitingCount + '</button>' : '');
+      (waitingCount ? '　<button type="button" class="chip red link" id="stock-waiting-chip" title="使用記録を、指示未記載で絞り込んで開きます">処方メモの指示未記載 ' + waitingCount + '</button>' : '') +
+      (orphanCount ? '　<button type="button" class="chip yellow link" id="stock-orphan-chip" title="死亡・退院などで患者マスタから外れた患者のお守り薬を一覧にします">患者マスタにない患者 ' + orphanCount + '件</button>' : '');
 
     $('#stock-table tbody').innerHTML = rows.map(({ s, info, pending }) => {
       const cls = pending ? 'row-pending' : s.state !== '在庫' ? 'row-closed' : info ? 'row-' + info.status : '';
@@ -599,7 +602,7 @@
 
   // ---------- 使用記録（データシート） ----------
   // 処方メモの状態: unissued=未発行（黄）/ waiting=発行済だが医師の指示が未記載（赤）/ written=記載済み
-  const MEMO_ORDER = { waiting: 0, unissued: 1, written: 2 };
+  const MEMO_ORDER = { waiting: 0, unissued: 1, written: 2, removed: 3 };
 
   function stampNow() {
     const now = new Date();
@@ -614,6 +617,8 @@
     const sort = $('#usage-sort').value;
     const rows = db.usages.filter((u) => {
       const st = L.memoState(u);
+      if (memo && memo !== 'removed' && st === 'removed') return false;
+      if (memo === 'removed' && st !== 'removed') return false;
       if (memo === 'waiting' && st !== 'waiting') return false;
       if (memo === 'no' && st !== 'unissued') return false;
       if (memo === 'yes' && st === 'unissued') return false;
@@ -640,6 +645,10 @@
 
   function memoCell(u) {
     const st = L.memoState(u);
+    if (st === 'removed') {
+      return '<span class="chip gray">死亡または退院による削除</span>' +
+        (u.removedAt ? '<br><small>削除日 ' + esc(fmtISO(u.removedAt.slice(0, 10))) + '</small>' : '');
+    }
     if (st === 'unissued') return '<span class="chip yellow">未発行</span>';
     if (st === 'written') {
       return '<span class="chip green">指示記載済</span>' +
@@ -652,7 +661,7 @@
 
   function renderUsage() {
     // 医師の絞り込み（未記載の件数つき）
-    const groups = L.groupByDoctor(db.usages);
+    const groups = L.groupByDoctor(db.usages.filter((u) => u.kind !== 'removed'));
     const waitingOf = (g) => g.items.filter((u) => L.memoState(u) === 'waiting').length;
     const docSel = $('#usage-filter-doctor');
     const prevDoc = docSel.value;
@@ -665,13 +674,14 @@
     const rows = usageRows();
 
     // 集計
-    const cnt = { waiting: 0, unissued: 0, written: 0 };
+    const cnt = { waiting: 0, unissued: 0, written: 0, removed: 0 };
     db.usages.forEach((u) => { cnt[L.memoState(u)]++; });
     $('#usage-summary').innerHTML =
       '使用記録 <b>' + db.usages.length + '</b> 件　' +
       '<span class="chip red">指示未記載 ' + cnt.waiting + '</span>' +
       '<span class="chip yellow">メモ未発行 ' + cnt.unissued + '</span>' +
       '<span class="chip green">記載済 ' + cnt.written + '</span>' +
+      (cnt.removed ? '<span class="chip gray">死亡・退院による削除 ' + cnt.removed + '</span>' : '') +
       (cnt.waiting
         ? '<span class="sum-docs">指示未記載の医師別：' + groups.filter(waitingOf).map((g) =>
           '<button type="button" class="chip red link" data-doc="' + esc(g.key) + '" title="この医師の未記載だけを表示">' +
@@ -687,6 +697,15 @@
 
     $('#usage-table tbody').innerHTML = rows.map((u) => {
       const st = L.memoState(u);
+      if (st === 'removed') {
+        return '<tr class="row-removed">' +
+          '<td class="num">' + u.no + '</td>' +
+          '<td>' + esc(u.patientName) + (u.patientId ? '<br><small>' + esc(u.patientId) + '</small>' : '') + '</td>' +
+          '<td>-</td><td>-</td>' +
+          '<td>' + esc(u.drugName) + (u.quantity ? '<br><small>' + esc(u.quantity) + esc(u.unit || '') + '</small>' : '') + '</td>' +
+          '<td>' + memoCell(u) + '</td>' +
+          '<td><div class="ops"><button data-act="delete" data-id="' + u.id + '" class="small danger">削除</button></div></td></tr>';
+      }
       return '<tr class="row-' + st + '">' +
         '<td class="num">' + u.no + '</td>' +
         '<td>' + esc(u.patientName) + '</td>' +
@@ -752,6 +771,15 @@
     const rows = db.usages.slice().sort((a, b) => a.no - b.no).map((u) => {
       const st = L.memoState(u);
       const days = st === 'waiting' ? L.waitingDays(u, today()) : null;
+      if (st === 'removed') {
+        return {
+          'No.': u.no, '患者名': u.patientName, '使用開始日': '', '開始指示医師': '', '処方メモ発行': '－', 'メモ発行日': '',
+          '医師の指示記載': '', '記載確認日': '', '未記載の経過日数': '', '患者ID': u.patientId || '', '区分': u.category,
+          '薬剤名': u.drugName, '数量': u.quantity ? u.quantity + (u.unit || '') : '', 'お守り薬の処方日': fmtISO(u.prescribedDate),
+          'お守り薬の処方医': u.prescriber || '', '記入者': '',
+          '備考': '死亡または退院による削除（' + fmtISO(String(u.removedAt || '').slice(0, 10)) + '）',
+        };
+      }
       return {
         'No.': u.no,
         '患者名': u.patientName,
@@ -1169,11 +1197,105 @@
       }
       save();
       render();
+      const orphans = L.stocksMissingFromMaster(db.stocks, db.patients);
       alert('シート「' + name + '」から ' + list.length + ' 名を読み込みました。' +
-        (excluded ? '\n（ID に WA、または名前に [亘] が入っている ' + excluded + ' 名は除外しました）' : ''));
+        (excluded ? '\n（ID に WA、または名前に [亘] が入っている ' + excluded + ' 名は除外しました）' : '') +
+        (orphans.length ? '\n※ 患者マスタにない患者のお守り薬が ' + orphans.length + ' 件あります（死亡・退院などの可能性）。薬剤在庫管理の画面で確認してください。' : ''));
+      if (orphans.length) openOrphans();
     } catch (err) {
       alert('患者マスタを読み込めませんでした。\n' + err.message);
     }
+  });
+
+  // ---------- 患者マスタにない患者のお守り薬（死亡・退院など） ----------
+  function orphanStocks() {
+    return L.stocksMissingFromMaster(db.stocks, db.patients);
+  }
+
+  function openOrphans() {
+    const list = orphanStocks().slice().sort((a, b) =>
+      (a.patientName || '').localeCompare(b.patientName || '', 'ja') || String(a.prescribedDate).localeCompare(String(b.prescribedDate)));
+    const people = new Map();
+    list.forEach((s) => {
+      const k = (s.patientId || '') + '|' + s.patientName;
+      if (!people.has(k)) people.set(k, []);
+      people.get(k).push(s);
+    });
+    $('#orphan-lead').textContent = list.length
+      ? '取り込んだ患者マスタに見つからない患者が ' + people.size + ' 名、そのお守り薬が ' + list.length + ' 件あります。死亡・退院などで患者マスタから外れた可能性があります。'
+      : '患者マスタにない患者のお守り薬はありません。';
+    const rows = [];
+    people.forEach((items) => {
+      const s0 = items[0];
+      rows.push('<tr class="pt-head"><td class="chk"><input type="checkbox" data-person="' + esc(s0.id) + '" checked title="この患者の分をまとめて選択"></td>' +
+        '<td colspan="5">' + esc(s0.patientName) + (s0.patientId ? '　<small>ID: ' + esc(s0.patientId) + '</small>' : '') + '（' + items.length + '件）</td></tr>');
+      items.forEach((s) => {
+        rows.push('<tr><td class="chk"><input type="checkbox" data-stock="' + esc(s.id) + '" data-owner="' + esc(s0.id) + '" checked></td>' +
+          '<td></td><td>' + esc(s.drugName) + '<br><small>' + esc(s.category) + '</small></td>' +
+          '<td class="num">' + esc(s.quantity) + esc(s.unit) + '</td><td>' + fmtISO(s.prescribedDate) + '</td><td>' + esc(s.state) + '</td></tr>');
+      });
+    });
+    $('#orphan-table tbody').innerHTML = rows.join('') || '<tr><td colspan="6" class="empty">ありません</td></tr>';
+    updateOrphanCount();
+    if (!$('#orphan-dialog').open) $('#orphan-dialog').showModal();
+  }
+
+  function orphanChecks() {
+    return $$('#orphan-table input[data-stock]');
+  }
+
+  function updateOrphanCount() {
+    const all = orphanChecks();
+    const sel = all.filter((c) => c.checked).length;
+    $('#orphan-count').textContent = all.length ? '選択 ' + sel + ' / ' + all.length + ' 件' : '';
+    $('#orphan-delete-selected').disabled = !sel;
+    $('#orphan-delete-all').disabled = !all.length;
+    $$('#orphan-table input[data-person]').forEach((p) => {
+      const mine = all.filter((c) => c.dataset.owner === p.dataset.person);
+      const n = mine.filter((c) => c.checked).length;
+      p.checked = n === mine.length;
+      p.indeterminate = n > 0 && n < mine.length;
+    });
+  }
+
+  $('#orphan-table').addEventListener('change', (e) => {
+    const p = e.target.closest('input[data-person]');
+    if (p) orphanChecks().filter((c) => c.dataset.owner === p.dataset.person).forEach((c) => { c.checked = p.checked; });
+    updateOrphanCount();
+  });
+  $('#orphan-all').addEventListener('click', () => { orphanChecks().forEach((c) => { c.checked = true; }); updateOrphanCount(); });
+  $('#orphan-none').addEventListener('click', () => { orphanChecks().forEach((c) => { c.checked = false; }); updateOrphanCount(); });
+  $('#orphan-close').addEventListener('click', () => $('#orphan-dialog').close());
+
+  // お守り薬を削除し、使用記録に「死亡または退院による削除」を残す
+  function removeOrphans(ids) {
+    const targets = db.stocks.filter((s) => ids.includes(s.id));
+    if (!targets.length) return;
+    const people = new Set(targets.map((s) => s.patientName)).size;
+    if (!confirm('お守り薬 ' + targets.length + ' 件（' + people + ' 名分）を削除します。\n' +
+      '使用記録に「死亡または退院による削除」として記録します。\nよろしいですか？')) return;
+    const stamp = stampNow();
+    targets.forEach((s) => {
+      db.usages.push({
+        id: uid(), no: db.nextUsageNo++, kind: 'removed', stockId: s.id,
+        patientName: s.patientName, patientId: s.patientId, drugName: s.drugName, category: s.category, unit: s.unit,
+        prescribedDate: s.prescribedDate, prescriber: s.prescriber, quantity: s.quantity, stockState: s.state,
+        startDate: '', doctorName: '', recorder: '', note: '死亡または退院による削除',
+        memoIssued: false, memoIssuedAt: '', instructed: false, instructedAt: '',
+        removedAt: stamp, createdAt: new Date().toISOString(),
+      });
+    });
+    db.stocks = db.stocks.filter((s) => !ids.includes(s.id));
+    save();
+    render();
+    if (orphanStocks().length) openOrphans(); else $('#orphan-dialog').close();
+  }
+
+  $('#orphan-delete-selected').addEventListener('click', () => removeOrphans(orphanChecks().filter((c) => c.checked).map((c) => c.dataset.stock)));
+  $('#orphan-delete-all').addEventListener('click', () => removeOrphans(orphanChecks().map((c) => c.dataset.stock)));
+  $('#patient-orphans').addEventListener('click', () => {
+    if (!db.patients.length) { alert('患者マスタが取り込まれていないため、確認できません。'); return; }
+    openOrphans();
   });
 
   $('#patient-template').addEventListener('click', () => {

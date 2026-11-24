@@ -150,7 +150,9 @@
   // 'unissued' : 処方メモ未発行
   // 'waiting'  : 発行済だが、医師の指示記載をまだ確認していない（処方メモに指示が書かれていない）
   // 'written'  : 医師の指示が記載されたことを確認済み
+  // 'removed'  : 死亡・退院などで患者マスタから外れ、お守り薬のデータを削除した記録（処方メモの対象外）
   function memoState(u) {
+    if (u.kind === 'removed') return 'removed';
     if (!u.memoIssued) return 'unissued';
     return u.instructed ? 'written' : 'waiting';
   }
@@ -164,6 +166,32 @@
   function waitingDays(u, today) {
     const d = parseDate(String(u.memoIssuedAt || '').slice(0, 10));
     return d ? Math.max(0, diffDays(d, today)) : null;
+  }
+
+  // ---- 患者マスタにない患者 ----
+  function patientKeyNorm(v) {
+    return String(v == null ? '' : v).normalize('NFKC').replace(/\s+/g, '');
+  }
+
+  // お守り薬のうち、患者が患者マスタに見つからないもの。
+  // 患者IDがあれば ID で照合し、ID が無い（または、マスタ側の同名の患者に ID が無い）ときは氏名で照合する
+  function stocksMissingFromMaster(stocks, patients) {
+    if (!patients || !patients.length) return [];
+    const ids = new Set();
+    const names = new Map(); // 氏名 → マスタ側に ID の無い人がいるか
+    patients.forEach(function (p) {
+      const id = patientKeyNorm(p.id);
+      if (id) ids.add(id);
+      const n = patientKeyNorm(p.name);
+      if (n) names.set(n, names.get(n) || !id);
+    });
+    return stocks.filter(function (s) {
+      const id = patientKeyNorm(s.patientId);
+      const n = patientKeyNorm(s.patientName);
+      if (id && ids.has(id)) return false;
+      if (names.has(n) && (!id || names.get(n))) return false;
+      return true;
+    });
   }
 
   // 医師ごとにまとめる。戻り値: [{ key, name, items: [使用記録...] }] を医師名のかな順
@@ -189,6 +217,7 @@
     searchNorm: searchNorm,
     matchesQuery: matchesQuery,
     memoState: memoState,
+    stocksMissingFromMaster: stocksMissingFromMaster,
     doctorKey: doctorKey,
     waitingDays: waitingDays,
     groupByDoctor: groupByDoctor,

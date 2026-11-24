@@ -121,3 +121,23 @@ test('年月の解析', () => {
   assert.equal(fmt(t.end), '2027/02/28');
   assert.equal(fmt(t.yellow), '2026/03/01');
 });
+
+test('使用記録: 死亡・退院による削除の記録は処方メモの対象外', () => {
+  assert.equal(L.memoState({ kind: 'removed', memoIssued: false }), 'removed');
+});
+
+test('患者マスタにない患者のお守り薬', () => {
+  const master = [{ id: 'T001', name: '試験 太郎' }, { id: '', name: '見本 花子' }];
+  const stocks = [
+    { id: 'a', patientId: 'T001', patientName: '試験 太郎' },      // ID で一致
+    { id: 'b', patientId: 'Ｔ００１', patientName: '別名' },        // 全角でも ID で一致
+    { id: 'c', patientId: 'T002', patientName: '試験 次郎' },      // マスタにない
+    { id: 'd', patientId: '', patientName: '試験　太郎' },         // ID 無し → 氏名で一致（空白の違いは無視）
+    { id: 'e', patientId: 'T009', patientName: '見本 花子' },      // マスタ側に ID が無い同名の人 → 一致
+    { id: 'f', patientId: 'T003', patientName: '試験 太郎' },      // ID が違う同名（マスタ側は ID あり）→ マスタにない
+    { id: 'g', patientId: '', patientName: '架空 三郎' },          // マスタにない
+  ];
+  assert.deepEqual(L.stocksMissingFromMaster(stocks, master).map((s) => s.id), ['c', 'f', 'g']);
+  // 患者マスタが空なら判定しない
+  assert.deepEqual(L.stocksMissingFromMaster(stocks, []), []);
+});
