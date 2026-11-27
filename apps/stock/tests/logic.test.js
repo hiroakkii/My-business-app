@@ -141,3 +141,23 @@ test('患者マスタにない患者のお守り薬', () => {
   // 患者マスタが空なら判定しない
   assert.deepEqual(L.stocksMissingFromMaster(stocks, []), []);
 });
+
+test('数量の単位: 錠は T、カプセルは C', () => {
+  assert.equal(L.unitFromSpec('500mg1錠'), 'T');
+  assert.equal(L.unitFromSpec('５００ｍｇ１錠'), 'T');          // 全角
+  assert.equal(L.unitFromSpec('250mg1カプセル'), 'C');
+  assert.equal(L.unitFromSpec('250mg1錠(レボフロキサシンとして)'), 'T');
+  assert.equal(L.unitFromSpec('１０％１ｇ'), 'g');
+  assert.equal(L.unitFromSpec('5mL1瓶'), '瓶');
+  assert.equal(L.unitFromSpec('100mg1個'), '個');
+  assert.equal(L.unitFromSpec('250mg'), '');                    // 単位の無い規格
+  assert.equal(L.unitFromSpec(''), '');
+  // 単位の列 → 規格 → 薬剤名 の順
+  assert.equal(L.unitOfDrug({ unit: '錠', spec: '' }), 'T');
+  assert.equal(L.unitOfDrug({ unit: 'カプセル' }), 'C');
+  assert.equal(L.unitOfDrug({ unit: '包', spec: '500mg1錠' }), '包');
+  assert.equal(L.unitOfDrug({ unit: '', spec: '500mg1錠' }), 'T');
+  assert.equal(L.unitOfDrug({ unit: '', spec: '250mg', name: 'アモキシシリンカプセル250mg' }), 'C');
+  assert.equal(L.unitOfDrug({ unit: '', spec: '200mg', name: 'クラリスロマイシン錠200mg' }), 'T');
+  assert.equal(L.unitOfDrug({ unit: '', spec: '', name: 'テスト坐剤' }), '');
+});

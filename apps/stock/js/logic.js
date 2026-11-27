@@ -168,6 +168,37 @@
     return d ? Math.max(0, diffDays(d, today)) : null;
   }
 
+  // ---- 数量の単位（薬剤マスタの単位・規格・薬剤名から） ----
+  // 錠 → T、カプセル → C と略す。それ以外（g・mL・枚・包・個 など）はそのまま
+  const UNIT_ABBR = { '錠': 'T', 'カプセル': 'C', 'カプセル剤': 'C', 'cap': 'C', 'CP': 'C', 'Cap': 'C' };
+  function abbrUnit(u) {
+    const s = String(u == null ? '' : u).normalize('NFKC').trim();
+    return UNIT_ABBR[s] || s;
+  }
+
+  // 規格（例: 500mg1錠、250mg1カプセル、10%1g、5mL1瓶）の末尾の単位。かっこ書き（…として）は除く
+  function unitFromSpec(spec) {
+    const s = String(spec == null ? '' : spec).normalize('NFKC').replace(/[（(][^（()）]*[)）]\s*$/, '').trim();
+    const m = s.match(/\d\s*([^\d.%\s]+)$/);
+    if (!m) return '';
+    const u = m[1].replace(/^(mg|μg|µg)\d*/, '');
+    return u ? abbrUnit(u) : '';
+  }
+
+  // 薬剤名から（例: レボフロキサシン錠500mg → T、アモキシシリンカプセル250mg → C）
+  function unitFromName(name) {
+    const s = String(name == null ? '' : name).normalize('NFKC');
+    if (/カプセル/.test(s)) return 'C';
+    if (/錠/.test(s)) return 'T';
+    return '';
+  }
+
+  // 薬剤マスタの1件から数量の単位を決める（単位の列 → 規格 → 薬剤名 の順）
+  function unitOfDrug(d) {
+    if (!d) return '';
+    return abbrUnit(d.unit) || unitFromSpec(d.spec) || unitFromName(d.name);
+  }
+
   // ---- 患者マスタにない患者 ----
   function patientKeyNorm(v) {
     return String(v == null ? '' : v).normalize('NFKC').replace(/\s+/g, '');
@@ -218,6 +249,9 @@
     matchesQuery: matchesQuery,
     memoState: memoState,
     stocksMissingFromMaster: stocksMissingFromMaster,
+    abbrUnit: abbrUnit,
+    unitFromSpec: unitFromSpec,
+    unitOfDrug: unitOfDrug,
     doctorKey: doctorKey,
     waitingDays: waitingDays,
     groupByDoctor: groupByDoctor,
