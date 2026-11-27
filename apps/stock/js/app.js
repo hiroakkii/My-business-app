@@ -363,7 +363,7 @@
       '<div class="form drug-row-body">' +
       '<label>薬剤名 <span class="req">*</span><input data-f="drugName" list="dl-drugs" required placeholder="薬剤マスタから入力補助されます"><small class="hint" data-r="hint"></small><div class="warn" data-r="warn"></div></label>' +
       '<label>区分 <span class="req">*</span><select data-f="category" required>' + categoryOptions() + '</select></label>' +
-      '<label>数量<span class="inline"><input data-f="quantity" type="number" min="0" step="any"><input data-f="unit" class="unit" placeholder="錠"></span></label>' +
+      '<label>数量<span class="inline"><input data-f="quantity" type="number" min="0" step="any"><input data-f="unit" class="unit" placeholder="T"></span></label>' +
       '<label>有効期限（製造から）<span class="inline">' +
         '<input data-f="expiryYears" type="number" min="0" step="1" class="short"> 年 ' +
         '<input data-f="expiryMonthsRest" type="number" min="0" max="11" step="1" class="short"> ヶ月</span>' +
@@ -460,7 +460,8 @@
         f('category').value = d.category;
         f('expiryYears').value = Math.floor(d.expiryMonths / 12) || '';
         f('expiryMonthsRest').value = d.expiryMonths % 12 || '';
-        if (d.unit) f('unit').value = d.unit;
+        // 数量の単位: 薬剤マスタの単位・規格・薬剤名から（錠 → T、カプセル → C）。分からなければ空欄にして手入力
+        f('unit').value = L.unitOfDrug(d);
         $('[data-r=hint]', row).textContent = '薬剤マスタ: ' + d.category + (d.spec ? ' / ' + d.spec : '') + ' / 有効期限 ' + L.monthsText(d.expiryMonths);
       } else {
         $('[data-r=hint]', row).textContent = f('drugName').value && db.drugs.length ? 'マスタに無い薬剤です（区分・有効期限を手入力してください）' : '';
@@ -1098,7 +1099,9 @@
       }
       return '<tr data-id="' + d.id + '">' +
         '<td>' + esc(d.code) + '</td><td>' + esc(d.category) + '</td><td>' + esc(d.name) + '</td>' +
-        '<td>' + esc(d.spec) + '</td><td>' + esc(d.unit) + '</td><td>' + L.monthsText(d.expiryMonths) + '</td>' +
+        '<td>' + esc(d.spec) + '</td><td>' + (d.unit ? esc(L.abbrUnit(d.unit))
+          : L.unitOfDrug(d) ? esc(L.unitOfDrug(d)) + '<br><small title="単位の列が空のため、規格または薬剤名から判定しています">（規格から）</small>' : '') + '</td>' +
+        '<td>' + L.monthsText(d.expiryMonths) + '</td>' +
         '<td>' + verifiedLabel(d) + '</td>' +
         '<td><div class="ops">' +
           (d.verified
